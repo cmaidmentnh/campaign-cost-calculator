@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Campaign Cost Calculator{% endblock %}
+
+{% block body %}
+<div x-data="adminPanel()" class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <header class="bg-blue-900 text-white py-4 shadow-lg">
+        <div class="max-w-6xl mx-auto px-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold">Admin Panel</h1>
+            <div class="flex items-center gap-4">
+                <a href="{{ url_for('calculator') }}" class="text-blue-200 hover:text-white text-sm">Calculator</a>
+                <a href="{{ url_for('admin_logout') }}" class="text-blue-200 hover:text-white text-sm">Logout</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <div class="grid lg:grid-cols-2 gap-8">
+            <!-- Pricing -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Pricing</h2>
+
+                <div class="space-y-6">
+                    {% for tactic, components in prices.items() %}
+                    <div class="border-b pb-4 last:border-0">
+                        <h3 class="font-medium text-gray-900 mb-3 capitalize">{{ tactic.replace('_', ' ') }}</h3>
+                        {% for comp in components %}
+                        <div class="flex items-center gap-4 mb-2">
+                            <label class="w-24 text-sm text-gray-600 capitalize">{{ comp.component }}</label>
+                            <div class="flex-1">
+                                <input type="number" step="0.001" min="0"
+                                       x-model="prices['{{ tactic }}']['{{ comp.component }}'].price"
+                                       class="w-24 border-gray-300 rounded text-sm">
+                            </div>
+                            <span class="text-xs text-gray-500">
+                                {{ 'per round' if comp.is_per_round else 'one-time' }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <button @click="savePrices()"
+                        class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded">
+                    Save Prices
+                </button>
+                <span x-show="pricesSaved" x-cloak class="ml-2 text-green-600 text-sm">Saved!</span>
+            </div>
+
+            <!-- Settings -->
+            <div class="space-y-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Settings</h2>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                            <input type="text" x-model="settings.company_name"
+                                   class="w-full border-gray-300 rounded-lg shadow-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Discount %</label>
+                            <input type="number" step="0.1" min="0" max="100" x-model="settings.discount_percent"
+                                   class="w-32 border-gray-300 rounded-lg shadow-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Notes / Terms</label>
+                            <textarea x-model="settings.notes" rows="3"
+                                      class="w-full border-gray-300 rounded-lg shadow-sm"></textarea>
+                        </div>
+                    </div>
+
+                    <button @click="saveSettings()"
+                            class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded">
+                        Save Settings
+                    </button>
+                    <span x-show="settingsSaved" x-cloak class="ml-2 text-green-600 text-sm">Saved!</span>
+                </div>
+
+                <!-- Change Password -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Change Password</h2>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                            <input type="password" x-model="newPassword"
+                                   class="w-full border-gray-300 rounded-lg shadow-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                            <input type="password" x-model="confirmPassword"
+                                   class="w-full border-gray-300 rounded-lg shadow-sm">
+                        </div>
+                    </div>
+
+                    <button @click="changePassword()"
+                            class="mt-4 bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded">
+                        Change Password
+                    </button>
+                    <span x-show="passwordChanged" x-cloak class="ml-2 text-green-600 text-sm">Changed!</span>
+                    <span x-show="passwordError" x-cloak class="ml-2 text-red-600 text-sm" x-text="passwordError"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Quotes -->
+        <div class="bg-white rounded-lg shadow p-6 mt-8">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Quotes</h2>
+
+            {% if quotes %}
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead>
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Voters</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for q in quotes %}
+                        <tr>
+                            <td class="px-4 py-2 text-sm text-gray-600">{{ q.created_at[:16] }}</td>
+                            <td class="px-4 py-2 text-sm text-gray-900">{{ q.client_name or '(unnamed)' }}</td>
+                            <td class="px-4 py-2 text-sm text-gray-600">{{ "{:,}".format(q.voter_count) }}</td>
+                            <td class="px-4 py-2 text-sm font-medium text-gray-900">${{ "{:,.2f}".format(q.grand_total) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-sm">No quotes saved yet.</p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+
+<script>
+function adminPanel() {
+    return {
+        prices: {
+            {% for tactic, components in prices.items() %}
+            '{{ tactic }}': {
+                {% for comp in components %}
+                '{{ comp.component }}': { price: {{ comp.price }}, description: '{{ comp.description or '' }}' },
+                {% endfor %}
+            },
+            {% endfor %}
+        },
+        settings: {
+            company_name: '{{ settings.company_name or '' }}',
+            discount_percent: '{{ settings.discount_percent or 0 }}',
+            notes: '{{ settings.notes or '' }}'
+        },
+        newPassword: '',
+        confirmPassword: '',
+        pricesSaved: false,
+        settingsSaved: false,
+        passwordChanged: false,
+        passwordError: '',
+
+        async savePrices() {
+            const priceList = [];
+            for (const [tactic, components] of Object.entries(this.prices)) {
+                for (const [component, data] of Object.entries(components)) {
+                    priceList.push({
+                        tactic,
+                        component,
+                        price: parseFloat(data.price),
+                        description: data.description
+                    });
+                }
+            }
+
+            try {
+                const resp = await fetch('/admin/update-prices', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ prices: priceList })
+                });
+                if (resp.ok) {
+                    this.pricesSaved = true;
+                    setTimeout(() => this.pricesSaved = false, 2000);
+                }
+            } catch (e) {
+                console.error('Error saving prices:', e);
+            }
+        },
+
+        async saveSettings() {
+            try {
+                const resp = await fetch('/admin/update-settings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(this.settings)
+                });
+                if (resp.ok) {
+                    this.settingsSaved = true;
+                    setTimeout(() => this.settingsSaved = false, 2000);
+                }
+            } catch (e) {
+                console.error('Error saving settings:', e);
+            }
+        },
+
+        async changePassword() {
+            this.passwordError = '';
+            this.passwordChanged = false;
+
+            if (this.newPassword !== this.confirmPassword) {
+                this.passwordError = 'Passwords do not match';
+                return;
+            }
+            if (this.newPassword.length < 6) {
+                this.passwordError = 'Password must be at least 6 characters';
+                return;
+            }
+
+            try {
+                const resp = await fetch('/admin/change-password', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ password: this.newPassword })
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    this.passwordChanged = true;
+                    this.newPassword = '';
+                    this.confirmPassword = '';
+                    setTimeout(() => this.passwordChanged = false, 2000);
+                } else {
+                    this.passwordError = data.error || 'Failed to change password';
+                }
+            } catch (e) {
+                this.passwordError = 'Failed to change password';
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

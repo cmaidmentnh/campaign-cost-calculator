@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block title %}Campaign Cost Calculator{% endblock %}
+
+{% block body %}
+<div x-data="calculator()" x-init="init()" class="min-h-screen">
+    <!-- Header -->
+    <header class="bg-blue-900 text-white py-4 shadow-lg">
+        <div class="max-w-6xl mx-auto px-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold">Campaign Cost Calculator</h1>
+            <a href="{{ url_for('admin_login') }}" class="text-blue-200 hover:text-white text-sm">Admin</a>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <div class="grid lg:grid-cols-3 gap-8">
+            <!-- Left Column: Filters -->
+            <div class="lg:col-span-2 space-y-6">
+
+                <!-- Geocoding Progress Banner -->
+                {% if districts.geocoding_progress and districts.geocoding_progress.percent < 100 %}
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-5 h-5 text-yellow-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-yellow-800">District geocoding in progress</p>
+                            <p class="text-sm text-yellow-700">{{ "{:,.0f}".format(districts.geocoding_progress.geocoded) }} of {{ "{:,.0f}".format(districts.geocoding_progress.total) }} voters geocoded ({{ districts.geocoding_progress.percent }}%). Using county-level data until complete.</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- District Selection -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">1. Select Geography</h2>
+
+                    <!-- County Selection -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">County</label>
+                        <select x-model="selectedCounty" @change="updateVoterCount()" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">All Counties</option>
+                            {% for county in districts.counties %}
+                            <option value="{{ county.name }}">{{ county.name }} ({{ "{:,}".format(county.voter_count) }} voters)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- House Districts (only show if geocoding has progressed) -->
+                    {% if districts.house_districts %}
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">House Districts</label>
+                        <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
+                            {% for d in districts.house_districts %}
+                            <label class="inline-flex items-center bg-white px-3 py-1 rounded border cursor-pointer hover:bg-blue-50"
+                                   :class="{'bg-blue-100 border-blue-500': selectedDistricts.includes('{{ d.name }}')}">
+                                <input type="checkbox" value="{{ d.name }}"
+                                       x-model="selectedDistricts" @change="updateVoterCount()"
+                                       class="sr-only">
+                                <span class="text-sm">{{ d.name }}</span>
+                                <span class="text-xs text-gray-500 ml-1">({{ "{:,}".format(d.voter_count) }})</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Selected Districts Summary -->
+                    <div x-show="selectedDistricts.length > 0" class="mt-2 text-sm text-gray-600">
+                        Selected: <span x-text="selectedDistricts.join(', ')"></span>
+                        <button @click="selectedDistricts = []; updateVoterCount()" class="ml-2 text-red-600 hover:underline">Clear</button>
+                    </div>
+                </div>
+
+                <!-- Party Filter -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">2. Filter by Party</h2>
+                    <div class="flex flex-wrap gap-4">
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" value="REP" x-model="selectedParties" @change="updateVoterCount()"
+                                   class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                            <span class="ml-2 text-sm font-medium text-gray-700">Republican</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" value="DEM" x-model="selectedParties" @change="updateVoterCount()"
+                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm font-medium text-gray-700">Democrat</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" value="UND" x-model="selectedParties" @change="updateVoterCount()"
+                                   class="rounded border-gray-300 text-gray-600 focus:ring-gray-500">
+                            <span class="ml-2 text-sm font-medium text-gray-700">Undeclared</span>
+                        </label>
+                    </div>
+                    <p class="mt-2 text-xs text-gray-500">Leave unchecked for all parties</p>
+                </div>
+
+                <!-- Vote History Filter -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">3. Filter by Vote History</h2>
+                    <p class="text-sm text-gray-600 mb-4">Filter to voters who participated in specific elections</p>
+
+                    <div class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                        {% for e in elections %}
+                        <label class="inline-flex items-center text-sm">
+                            <input type="checkbox" value="{{ e.code }}" x-model="selectedElections" @change="updateVoterCount()"
+                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2">{{ e.name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+
+                    <div x-show="selectedElections.length > 0" class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Minimum elections participated</label>
+                        <select x-model="minElections" @change="updateVoterCount()" class="border-gray-300 rounded-lg shadow-sm">
+                            <option value="">Any</option>
+                            <option value="1">At least 1</option>
+                            <option value="2">At least 2</option>
+                            <option value="3">At least 3</option>
+                            <option value="4">At least 4</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Tactics & Rounds -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">4. Select Outreach Tactics</h2>
+
+                    <div class="space-y-6">
+                        <!-- Direct Mail -->
+                        <div class="border-b pb-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <div>
+                                    <h3 class="font-medium text-gray-900">Direct Mail</h3>
+                                    <p class="text-sm text-gray-500">${{ "%.2f"|format(prices.direct_mail.total_per_round) }}/voter/round</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-sm text-gray-600">Rounds:</label>
+                                    <input type="number" x-model.number="rounds.direct_mail" @input="calculate()"
+                                           min="0" max="10" class="w-16 border-gray-300 rounded text-center">
+                                </div>
+                            </div>
+                            <input type="range" x-model.number="rounds.direct_mail" @input="calculate()"
+                                   min="0" max="10" class="w-full">
+                        </div>
+
+                        <!-- SMS -->
+                        <div class="border-b pb-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <div>
+                                    <h3 class="font-medium text-gray-900">SMS/Text</h3>
+                                    <p class="text-sm text-gray-500">${{ "%.3f"|format(prices.sms.components[0].price) }} append + ${{ "%.3f"|format(prices.sms.components[1].price) }}/msg</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-sm text-gray-600">Rounds:</label>
+                                    <input type="number" x-model.number="rounds.sms" @input="calculate()"
+                                           min="0" max="10" class="w-16 border-gray-300 rounded text-center">
+                                </div>
+                            </div>
+                            <input type="range" x-model.number="rounds.sms" @input="calculate()"
+                                   min="0" max="10" class="w-full">
+                        </div>
+
+                        <!-- Email -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <div>
+                                    <h3 class="font-medium text-gray-900">Email</h3>
+                                    <p class="text-sm text-gray-500">${{ "%.3f"|format(prices.email.components[0].price) }} append + ${{ "%.3f"|format(prices.email.components[1].price) }}/email</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-sm text-gray-600">Rounds:</label>
+                                    <input type="number" x-model.number="rounds.email" @input="calculate()"
+                                           min="0" max="10" class="w-16 border-gray-300 rounded text-center">
+                                </div>
+                            </div>
+                            <input type="range" x-model.number="rounds.email" @input="calculate()"
+                                   min="0" max="10" class="w-full">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Results -->
+            <div class="space-y-6">
+                <!-- Voter Universe -->
+                <div class="bg-white rounded-lg shadow p-6 sticky top-4">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Target Universe</h2>
+
+                    <div class="text-center py-6" x-show="loading">
+                        <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                    </div>
+
+                    <div x-show="!loading" x-cloak>
+                        <div class="text-4xl font-bold text-blue-900 text-center mb-2" x-text="voterCount.toLocaleString()"></div>
+                        <div class="text-sm text-gray-600 text-center mb-4">voters</div>
+
+                        <!-- Party Breakdown -->
+                        <div x-show="partyBreakdown" class="grid grid-cols-3 gap-2 text-center text-sm mb-6">
+                            <div class="bg-red-50 rounded p-2">
+                                <div class="font-semibold text-red-700" x-text="partyBreakdown?.REP?.toLocaleString() || 0"></div>
+                                <div class="text-red-600 text-xs">REP</div>
+                            </div>
+                            <div class="bg-blue-50 rounded p-2">
+                                <div class="font-semibold text-blue-700" x-text="partyBreakdown?.DEM?.toLocaleString() || 0"></div>
+                                <div class="text-blue-600 text-xs">DEM</div>
+                            </div>
+                            <div class="bg-gray-100 rounded p-2">
+                                <div class="font-semibold text-gray-700" x-text="partyBreakdown?.UND?.toLocaleString() || 0"></div>
+                                <div class="text-gray-600 text-xs">UND</div>
+                            </div>
+                        </div>
+
+                        <!-- Cost Breakdown -->
+                        <div class="border-t pt-4">
+                            <h3 class="font-medium text-gray-900 mb-3">Cost Breakdown</h3>
+
+                            <template x-for="(tactic, key) in costBreakdown" :key="key">
+                                <div class="mb-4 pb-4 border-b border-gray-100 last:border-0">
+                                    <div class="flex justify-between font-medium">
+                                        <span x-text="tactic.name"></span>
+                                        <span x-text="'$' + tactic.subtotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})"></span>
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        <span x-text="tactic.rounds + ' round(s)'"></span>
+                                    </div>
+                                    <template x-for="comp in tactic.components" :key="comp.name">
+                                        <div class="text-xs text-gray-500 ml-2" x-text="comp.name + ': ' + comp.description"></div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <div x-show="Object.keys(costBreakdown).length === 0" class="text-gray-400 text-sm text-center py-4">
+                                Select tactics above to see costs
+                            </div>
+
+                            <!-- Totals -->
+                            <div x-show="grandTotal > 0" class="space-y-2 pt-4 border-t">
+                                <div class="flex justify-between text-sm">
+                                    <span>Subtotal</span>
+                                    <span x-text="'$' + subtotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})"></span>
+                                </div>
+                                <div x-show="discountPercent > 0" class="flex justify-between text-sm text-green-600">
+                                    <span x-text="'Discount (' + discountPercent + '%)'"></span>
+                                    <span x-text="'-$' + discountAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})"></span>
+                                </div>
+                                <div class="flex justify-between text-xl font-bold text-blue-900 pt-2 border-t">
+                                    <span>Total</span>
+                                    <span x-text="'$' + grandTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Export -->
+                        <div x-show="grandTotal > 0" class="mt-6">
+                            <input type="text" x-model="clientName" placeholder="Client name (optional)"
+                                   class="w-full border-gray-300 rounded mb-2 text-sm">
+                            <button @click="saveQuote()"
+                                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded">
+                                Save Quote
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-100 py-4 mt-8">
+        <div class="max-w-6xl mx-auto px-4 text-center text-sm text-gray-600">
+            {{ settings.company_name }}
+            {% if settings.notes %}
+            <p class="text-xs mt-1">{{ settings.notes }}</p>
+            {% endif %}
+        </div>
+    </footer>
+</div>
+
+<script>
+function calculator() {
+    return {
+        // State
+        selectedCounty: '',
+        selectedDistricts: [],
+        selectedParties: [],
+        selectedElections: [],
+        minElections: '',
+        rounds: {
+            direct_mail: 0,
+            sms: 0,
+            email: 0
+        },
+        clientName: '',
+
+        // Results
+        loading: false,
+        voterCount: 0,
+        partyBreakdown: null,
+        costBreakdown: {},
+        subtotal: 0,
+        discountPercent: {{ settings.discount_percent|default(0) }},
+        discountAmount: 0,
+        grandTotal: 0,
+
+        init() {
+            this.updateVoterCount();
+        },
+
+        async updateVoterCount() {
+            this.loading = true;
+
+            const params = {
+                districts: this.selectedDistricts,
+                parties: this.selectedParties,
+                county: this.selectedCounty,
+                elections: this.selectedElections,
+                min_elections: this.minElections || null
+            };
+
+            try {
+                const resp = await fetch('/api/voter-count', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(params)
+                });
+                const data = await resp.json();
+
+                this.voterCount = data.total_voters || 0;
+                this.partyBreakdown = data.by_party || null;
+
+                this.calculate();
+            } catch (e) {
+                console.error('Error fetching voter count:', e);
+            }
+
+            this.loading = false;
+        },
+
+        async calculate() {
+            if (this.voterCount === 0) {
+                this.costBreakdown = {};
+                this.subtotal = 0;
+                this.discountAmount = 0;
+                this.grandTotal = 0;
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/calculate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        voter_count: this.voterCount,
+                        rounds: this.rounds
+                    })
+                });
+                const data = await resp.json();
+
+                this.costBreakdown = data.breakdown || {};
+                this.subtotal = data.subtotal || 0;
+                this.discountPercent = data.discount_percent || 0;
+                this.discountAmount = data.discount_amount || 0;
+                this.grandTotal = data.grand_total || 0;
+            } catch (e) {
+                console.error('Error calculating costs:', e);
+            }
+        },
+
+        async saveQuote() {
+            try {
+                const resp = await fetch('/api/save-quote', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        client_name: this.clientName,
+                        districts: this.selectedDistricts,
+                        filters: {
+                            county: this.selectedCounty,
+                            parties: this.selectedParties,
+                            elections: this.selectedElections,
+                            min_elections: this.minElections
+                        },
+                        voter_count: this.voterCount,
+                        breakdown: this.costBreakdown,
+                        grand_total: this.grandTotal
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    alert('Quote saved! ID: ' + data.quote_id);
+                }
+            } catch (e) {
+                console.error('Error saving quote:', e);
+                alert('Failed to save quote');
+            }
+        }
+    };
+}
+</script>
+{% endblock %}
