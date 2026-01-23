@@ -561,13 +561,18 @@ function calculator() {
             this.updateVoterCount();
         },
 
+        // Natural sort function for proper numeric ordering (e.g., 1, 2, 10 instead of 1, 10, 2)
+        naturalSort(a, b) {
+            return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+        },
+
         async loadDistricts() {
             try {
                 const resp = await fetch("/api/districts");
                 const data = await resp.json();
                 this.counties = data.counties || [];
-                this.houseDistricts = data.house_districts || [];
-                this.senateDistricts = data.senate_districts || [];
+                this.houseDistricts = (data.house_districts || []).sort(this.naturalSort);
+                this.senateDistricts = (data.senate_districts || []).sort(this.naturalSort);
                 this.geocodingProgress = data.geocoding_progress || null;
             } catch (e) {
                 console.error("Failed to load districts:", e);
