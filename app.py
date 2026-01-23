@@ -68,7 +68,18 @@ def init_db():
         price REAL NOT NULL,
         is_per_round INTEGER DEFAULT 1,
         description TEXT,
+        pricing_model TEXT DEFAULT 'per_unit',
         UNIQUE(tactic, component)
+    )''')
+
+    # Volume tiers for dynamic pricing
+    c.execute('''CREATE TABLE IF NOT EXISTS volume_tiers (
+        id INTEGER PRIMARY KEY,
+        tactic TEXT NOT NULL,
+        min_qty INTEGER NOT NULL,
+        max_qty INTEGER,
+        discount_percent REAL NOT NULL DEFAULT 0,
+        UNIQUE(tactic, min_qty)
     )''')
 
     # Settings table
@@ -90,18 +101,42 @@ def init_db():
         notes TEXT
     )''')
 
-    # Default prices
+    # Default prices - voter contact tactics
     defaults = [
-        ('direct_mail', 'postage', 0.50, 1, 'USPS first class'),
-        ('direct_mail', 'printing', 0.35, 1, 'Full color postcard'),
-        ('sms', 'append', 0.05, 0, 'Phone number lookup'),
-        ('sms', 'send', 0.025, 1, 'Per text message'),
-        ('email', 'append', 0.03, 0, 'Email append'),
-        ('email', 'send', 0.008, 1, 'Per email sent'),
+        ('direct_mail', 'postage', 0.50, 1, 'USPS first class', 'per_unit'),
+        ('direct_mail', 'printing', 0.35, 1, 'Full color postcard', 'per_unit'),
+        ('sms', 'append', 0.05, 0, 'Phone number lookup', 'per_unit'),
+        ('sms', 'send', 0.025, 1, 'Per text message', 'per_unit'),
+        ('email', 'append', 0.03, 0, 'Email append', 'per_unit'),
+        ('email', 'send', 0.008, 1, 'Per email sent', 'per_unit'),
+        # Digital advertising - CPM based
+        ('facebook', 'cpm', 4.00, 1, 'Cost per 1000 impressions', 'cpm'),
+        ('facebook', 'management', 500.00, 0, 'Monthly management fee', 'flat'),
+        ('ctv', 'cpm', 25.00, 1, 'Connected TV cost per 1000', 'cpm'),
+        ('ctv', 'management', 750.00, 0, 'Monthly management fee', 'flat'),
+        ('display', 'cpm', 3.00, 1, 'Display ads cost per 1000', 'cpm'),
+        ('display', 'management', 400.00, 0, 'Monthly management fee', 'flat'),
     ]
-    for tactic, component, price, is_per_round, desc in defaults:
-        c.execute('''INSERT OR IGNORE INTO prices (tactic, component, price, is_per_round, description)
-                     VALUES (?, ?, ?, ?, ?)''', (tactic, component, price, is_per_round, desc))
+    for tactic, component, price, is_per_round, desc, model in defaults:
+        c.execute('''INSERT OR IGNORE INTO prices (tactic, component, price, is_per_round, description, pricing_model)
+                     VALUES (?, ?, ?, ?, ?, ?)''', (tactic, component, price, is_per_round, desc, model))
+
+    # Default volume tiers (discount % at quantity thresholds)
+    volume_defaults = [
+        ('direct_mail', 0, 9999, 0),
+        ('direct_mail', 10000, 49999, 5),
+        ('direct_mail', 50000, 99999, 10),
+        ('direct_mail', 100000, None, 15),
+        ('sms', 0, 9999, 0),
+        ('sms', 10000, 49999, 5),
+        ('sms', 50000, None, 10),
+        ('email', 0, 24999, 0),
+        ('email', 25000, 99999, 10),
+        ('email', 100000, None, 20),
+    ]
+    for tactic, min_q, max_q, disc in volume_defaults:
+        c.execute('''INSERT OR IGNORE INTO volume_tiers (tactic, min_qty, max_qty, discount_percent)
+                     VALUES (?, ?, ?, ?)''', (tactic, min_q, max_q, disc))
 
     # Default settings
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_password', ?)",
@@ -109,6 +144,9 @@ def init_db():
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('discount_percent', '0')")
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('company_name', '1772 Strategies')")
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('notes', 'Terms: 50% deposit required to begin. Balance due upon completion.')")
+    # Digital ad settings
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('fb_ctr', '0.5')")  # 0.5% click-through rate
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('fb_conversion_rate', '20')")  # 20% conversion rate
 
     conn.commit()
     conn.close()
@@ -231,13 +269,15 @@ def api_voter_count():
 @app.route('/api/calculate', methods=['POST'])
 @csrf.exempt
 def api_calculate():
-    """Calculate costs based on voter count and rounds."""
+    """Calculate costs based on voter count, rounds, and budgets."""
     data = request.json or {}
     voter_count = data.get('voter_count', 0)
     rounds = data.get('rounds', {})
+    budgets = data.get('budgets', {})  # For digital ads
 
     conn = get_db()
     prices = conn.execute('SELECT * FROM prices').fetchall()
+    volume_tiers = conn.execute('SELECT * FROM volume_tiers ORDER BY tactic, min_qty').fetchall()
     settings = {row['key']: row['value'] for row in conn.execute('SELECT * FROM settings').fetchall()}
     conn.close()
 
@@ -247,36 +287,69 @@ def api_calculate():
         price_map[(p['tactic'], p['component'])] = {
             'price': p['price'],
             'is_per_round': p['is_per_round'],
-            'description': p['description']
+            'description': p['description'],
+            'pricing_model': p['pricing_model'] if 'pricing_model' in p.keys() else 'per_unit'
         }
 
-    discount_pct = float(settings.get('discount_percent', 0)) / 100
+    # Build volume tier map
+    tier_map = {}
+    for t in volume_tiers:
+        if t['tactic'] not in tier_map:
+            tier_map[t['tactic']] = []
+        tier_map[t['tactic']].append({
+            'min': t['min_qty'],
+            'max': t['max_qty'],
+            'discount': t['discount_percent']
+        })
 
-    tactics = {
+    def get_volume_discount(tactic, qty):
+        """Get volume discount percentage for a tactic at given quantity."""
+        tiers = tier_map.get(tactic, [])
+        for tier in tiers:
+            if qty >= tier['min'] and (tier['max'] is None or qty <= tier['max']):
+                return tier['discount'] / 100
+        return 0
+
+    discount_pct = float(settings.get('discount_percent', 0)) / 100
+    fb_ctr = float(settings.get('fb_ctr', 0.5)) / 100
+    fb_conv_rate = float(settings.get('fb_conversion_rate', 20)) / 100
+
+    # Voter contact tactics (per-unit pricing)
+    voter_tactics = {
         'direct_mail': {'name': 'Direct Mail', 'components': ['postage', 'printing']},
         'sms': {'name': 'SMS/Text', 'components': ['append', 'send']},
         'email': {'name': 'Email', 'components': ['append', 'send']},
     }
 
+    # Digital advertising tactics (CPM/budget based)
+    digital_tactics = {
+        'facebook': {'name': 'Facebook/Meta Ads', 'components': ['cpm', 'management']},
+        'ctv': {'name': 'Connected TV (CTV)', 'components': ['cpm', 'management']},
+        'display': {'name': 'Display Ads', 'components': ['cpm', 'management']},
+    }
+
     breakdown = {}
     grand_total = 0
 
-    for tactic_key, tactic_info in tactics.items():
+    # Calculate voter contact tactics
+    for tactic_key, tactic_info in voter_tactics.items():
         num_rounds = rounds.get(tactic_key, 0)
         if num_rounds == 0:
             continue
 
+        volume_discount = get_volume_discount(tactic_key, voter_count)
         tactic_total = 0
         components = []
 
         for comp in tactic_info['components']:
-            price_info = price_map.get((tactic_key, comp), {'price': 0, 'is_per_round': 1, 'description': ''})
-            unit_price = price_info['price']
+            price_info = price_map.get((tactic_key, comp), {'price': 0, 'is_per_round': 1, 'description': '', 'pricing_model': 'per_unit'})
+            base_price = price_info['price']
+            unit_price = base_price * (1 - volume_discount)
 
             if price_info['is_per_round']:
                 cost = voter_count * num_rounds * unit_price
                 units = voter_count * num_rounds
-                desc = f"{voter_count:,} x {num_rounds} rounds x ${unit_price:.3f}"
+                desc = f"{voter_count:,} x {num_rounds} x ${unit_price:.3f}"
             else:
                 cost = voter_count * unit_price
                 units = voter_count
@@ -285,6 +358,7 @@ def api_calculate():
             components.append({
                 'name': comp.replace('_', ' ').title(),
                 'unit_price': unit_price,
+                'base_price': base_price,
                 'units': units,
                 'cost': cost,
                 'description': desc,
@@ -296,9 +370,63 @@ def api_calculate():
             'name': tactic_info['name'],
             'rounds': num_rounds,
             'components': components,
-            'subtotal': tactic_total
+            'subtotal': tactic_total,
+            'volume_discount': volume_discount * 100
         }
         grand_total += tactic_total
+
+    # Calculate digital advertising tactics (budget-based)
+    for tactic_key, tactic_info in digital_tactics.items():
+        budget = budgets.get(tactic_key, 0)
+        num_months = rounds.get(tactic_key, 0)  # "rounds" = months for digital
+        if budget == 0 and num_months == 0:
+            continue
+
+        tactic_total = 0
+        components = []
+
+        for comp in tactic_info['components']:
+            price_info = price_map.get((tactic_key, comp), {'price': 0, 'is_per_round': 1, 'description': '', 'pricing_model': 'per_unit'})
+            model = price_info.get('pricing_model', 'per_unit')
+
+            if model == 'cpm' and budget > 0:
+                cpm = price_info['price']
+                impressions = (budget / cpm) * 1000
+                clicks = impressions * fb_ctr
+                conversions = clicks * fb_conv_rate
+                cost = budget * num_months if num_months > 0 else budget
+
+                components.append({
+                    'name': 'Ad Spend',
+                    'unit_price': cpm,
+                    'cost': cost,
+                    'description': f"${budget:,.0f}/mo x {num_months} months" if num_months > 0 else f"${budget:,.0f} budget",
+                    'impressions': int(impressions * (num_months or 1)),
+                    'clicks': int(clicks * (num_months or 1)),
+                    'conversions': int(conversions * (num_months or 1)),
+                    'cpm': cpm
+                })
+                tactic_total += cost
+
+            elif model == 'flat' and num_months > 0:
+                cost = price_info['price'] * num_months
+                components.append({
+                    'name': comp.replace('_', ' ').title(),
+                    'unit_price': price_info['price'],
+                    'cost': cost,
+                    'description': f"${price_info['price']:,.0f}/mo x {num_months} months"
+                })
+                tactic_total += cost
+
+        if tactic_total > 0:
+            breakdown[tactic_key] = {
+                'name': tactic_info['name'],
+                'rounds': num_months,
+                'budget': budget,
+                'components': components,
+                'subtotal': tactic_total
+            }
+            grand_total += tactic_total
 
     discount_amount = grand_total * discount_pct
     final_total = grand_total - discount_amount

@@ -59,14 +59,37 @@
                                 </template>
                             </select>
                         </div>
-                        <div x-show="houseDistricts.length > 0">
+                        <div x-show="houseDistricts.length > 0" class="relative">
                             <label class="block text-sm font-medium text-dark-300 mb-2">House Districts</label>
-                            <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-3 rounded-xl bg-white/5">
-                                <template x-for="d in houseDistricts" :key="d.name">
-                                    <label class="inline-flex items-center px-3 py-1.5 rounded-lg cursor-pointer transition-all text-sm" :class="selectedDistricts.includes(d.name) ? 'bg-accent-500/30 text-accent-300 border border-accent-500/50' : 'bg-white/5 text-dark-300 border border-white/10 hover:bg-white/10'">
-                                        <input type="checkbox" :value="d.name" x-model="selectedDistricts" @change="updateVoterCount()" class="sr-only">
-                                        <span x-text="d.name"></span><span class="text-dark-500 ml-1.5 text-xs" x-text="'(' + d.voter_count.toLocaleString() + ')'"></span>
-                                    </label>
+                            <!-- Autocomplete input -->
+                            <div class="relative">
+                                <input type="text" x-model="districtSearch" @focus="districtDropdownOpen = true" @click.away="districtDropdownOpen = false"
+                                       placeholder="Search and select districts..."
+                                       class="w-full rounded-xl px-4 py-3 pr-10">
+                                <svg class="w-5 h-5 text-dark-500 absolute right-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            </div>
+                            <!-- Dropdown -->
+                            <div x-show="districtDropdownOpen && filteredDistricts.length > 0" x-cloak
+                                 class="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto rounded-xl bg-dark-800 border border-white/10 shadow-xl">
+                                <template x-for="d in filteredDistricts" :key="d.name">
+                                    <div @click="toggleDistrict(d.name)"
+                                         class="px-4 py-2.5 cursor-pointer flex items-center justify-between hover:bg-white/5 transition-colors"
+                                         :class="selectedDistricts.includes(d.name) ? 'bg-accent-500/20' : ''">
+                                        <span class="text-sm" x-text="d.name"></span>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-dark-500" x-text="d.voter_count.toLocaleString() + ' voters'"></span>
+                                            <svg x-show="selectedDistricts.includes(d.name)" class="w-4 h-4 text-accent-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <!-- Selected districts pills -->
+                            <div x-show="selectedDistricts.length > 0" class="flex flex-wrap gap-2 mt-3">
+                                <template x-for="name in selectedDistricts" :key="name">
+                                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-500/20 text-accent-300 text-sm border border-accent-500/30">
+                                        <span x-text="name"></span>
+                                        <button @click="toggleDistrict(name)" class="hover:text-white transition-colors">&times;</button>
+                                    </span>
                                 </template>
                             </div>
                         </div>
@@ -100,44 +123,74 @@
                         <span class="text-dark-400 text-sm">Loading elections...</span>
                     </div>
 
-                    <div x-show="!loadingElections" x-cloak>
-                        <div x-show="elections.length === 0" class="text-dark-500 text-sm">No elections available</div>
-                        <div x-show="elections.length > 0" class="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2">
-                            <template x-for="e in elections" :key="e.code">
-                                <label class="inline-flex items-center gap-3 cursor-pointer group text-sm">
-                                    <input type="checkbox" :value="e.code" x-model="selectedElections" @change="updateVoterCount()">
-                                    <span class="text-dark-300 group-hover:text-white transition-colors" x-text="e.name"></span>
-                                </label>
-                            </template>
-                        </div>
-                        <div x-show="selectedElections.length > 0" class="mt-4 pt-4 border-t border-white/10">
-                            <label class="block text-sm font-medium text-dark-300 mb-2">Minimum elections</label>
-                            <select x-model="minElections" @change="updateVoterCount()" class="rounded-xl px-4 py-2.5">
-                                <option value="">Any</option><option value="1">At least 1</option><option value="2">At least 2</option><option value="3">At least 3</option><option value="4">At least 4</option>
+                    <div x-show="!loadingElections" x-cloak class="space-y-4">
+                        <!-- Election dropdown -->
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Election</label>
+                            <select x-model="selectedElection" @change="updateVoterCount()" class="w-full rounded-xl px-4 py-3">
+                                <option value="">All Elections</option>
+                                <template x-for="e in elections" :key="e.code">
+                                    <option :value="e.code" x-text="e.name"></option>
+                                </template>
                             </select>
                         </div>
+
+                        <!-- Vote Type dropdown -->
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Vote Type</label>
+                            <select x-model="selectedVoteType" @change="updateVoterCount()" class="w-full rounded-xl px-4 py-3">
+                                <option value="">Any Method</option>
+                                <option value="voted">Voted (Any Method)</option>
+                                <option value="voted_rep">Voted Republican Ballot</option>
+                                <option value="voted_dem">Voted Democratic Ballot</option>
+                                <option value="absentee">Voted Absentee</option>
+                                <option value="absentee_rep">Voted Republican Absentee</option>
+                                <option value="absentee_dem">Voted Democratic Absentee</option>
+                                <option value="in_person">Voted In Person</option>
+                            </select>
+                            <p x-show="selectedVoteType && selectedVoteType.includes('rep') || selectedVoteType && selectedVoteType.includes('dem')" class="mt-2 text-xs text-amber-400">Note: Party ballots only apply to primary elections</p>
+                        </div>
+
+                        <!-- Selected vote history filters -->
+                        <div x-show="voteHistoryFilters.length > 0" class="pt-4 border-t border-white/10">
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Active Filters</label>
+                            <div class="flex flex-wrap gap-2">
+                                <template x-for="(filter, idx) in voteHistoryFilters" :key="idx">
+                                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-500/20 text-accent-300 text-sm border border-accent-500/30">
+                                        <span x-text="filter.label"></span>
+                                        <button @click="removeVoteFilter(idx)" class="hover:text-white transition-colors">&times;</button>
+                                    </span>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- Add filter button -->
+                        <button x-show="selectedElection" @click="addVoteFilter()"
+                                class="w-full py-2.5 rounded-xl border border-dashed border-white/20 text-dark-400 hover:text-white hover:border-white/40 transition-colors text-sm">
+                            + Add Vote History Filter
+                        </button>
                     </div>
                 </div>
 
-                <!-- Tactics -->
+                <!-- Voter Contact Tactics -->
                 <div class="glass rounded-2xl p-6 animate-in" style="animation-delay: 0.25s">
                     <div class="flex items-center gap-3 mb-6">
                         <div class="w-8 h-8 rounded-lg bg-accent-500/20 flex items-center justify-center"><span class="text-accent-400 font-semibold text-sm">4</span></div>
-                        <h2 class="text-lg font-semibold">Select Outreach Tactics</h2>
+                        <h2 class="text-lg font-semibold">Voter Contact</h2>
                     </div>
-                    <div class="space-y-8">
+                    <div class="space-y-6">
                         <div>
-                            <div class="flex justify-between items-start mb-4">
+                            <div class="flex justify-between items-start mb-3">
                                 <div>
                                     <h3 class="font-medium text-white flex items-center gap-2"><svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>Direct Mail</h3>
-                                    <p class="text-sm text-dark-400 mt-1">${{ "%.2f"|format(prices.direct_mail.total_per_round) }} per voter per round</p>
+                                    <p class="text-sm text-dark-400 mt-1">${{ "%.2f"|format(prices.direct_mail.total_per_round) }}/voter/round <span class="text-green-400 text-xs" x-show="voterCount >= 10000">• Volume discount applies</span></p>
                                 </div>
                                 <div class="flex items-center gap-3 bg-white/5 rounded-xl px-3 py-2"><span class="text-sm text-dark-400">Rounds</span><input type="number" x-model.number="rounds.direct_mail" @input="calculate()" min="0" max="10" class="w-14 rounded-lg px-2 py-1 text-center bg-transparent border-0"></div>
                             </div>
                             <input type="range" x-model.number="rounds.direct_mail" @input="calculate()" min="0" max="10" class="w-full">
                         </div>
                         <div>
-                            <div class="flex justify-between items-start mb-4">
+                            <div class="flex justify-between items-start mb-3">
                                 <div>
                                     <h3 class="font-medium text-white flex items-center gap-2"><svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>SMS / Text</h3>
                                     <p class="text-sm text-dark-400 mt-1">${{ "%.3f"|format(prices.sms.components[0].price) }} append + ${{ "%.3f"|format(prices.sms.components[1].price) }}/msg</p>
@@ -147,7 +200,7 @@
                             <input type="range" x-model.number="rounds.sms" @input="calculate()" min="0" max="10" class="w-full">
                         </div>
                         <div>
-                            <div class="flex justify-between items-start mb-4">
+                            <div class="flex justify-between items-start mb-3">
                                 <div>
                                     <h3 class="font-medium text-white flex items-center gap-2"><svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/></svg>Email</h3>
                                     <p class="text-sm text-dark-400 mt-1">${{ "%.3f"|format(prices.email.components[0].price) }} append + ${{ "%.3f"|format(prices.email.components[1].price) }}/email</p>
@@ -155,6 +208,106 @@
                                 <div class="flex items-center gap-3 bg-white/5 rounded-xl px-3 py-2"><span class="text-sm text-dark-400">Rounds</span><input type="number" x-model.number="rounds.email" @input="calculate()" min="0" max="10" class="w-14 rounded-lg px-2 py-1 text-center bg-transparent border-0"></div>
                             </div>
                             <input type="range" x-model.number="rounds.email" @input="calculate()" min="0" max="10" class="w-full">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Digital Advertising -->
+                <div class="glass rounded-2xl p-6 animate-in" style="animation-delay: 0.3s">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="w-8 h-8 rounded-lg bg-accent-500/20 flex items-center justify-center"><span class="text-accent-400 font-semibold text-sm">5</span></div>
+                        <h2 class="text-lg font-semibold">Digital Advertising</h2>
+                    </div>
+                    <div class="space-y-6">
+                        <!-- Facebook/Meta -->
+                        <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="font-medium text-white flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                        Facebook / Meta Ads
+                                    </h3>
+                                    <p class="text-sm text-dark-400 mt-1">$4.00 CPM • Geo-targeted to your universe</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-dark-400 mb-1">Monthly Budget</label>
+                                    <div class="relative">
+                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500">$</span>
+                                        <input type="number" x-model.number="budgets.facebook" @input="calculate()" min="0" step="100" placeholder="0" class="w-full pl-7 rounded-lg px-3 py-2 text-sm">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-dark-400 mb-1">Months</label>
+                                    <input type="number" x-model.number="rounds.facebook" @input="calculate()" min="0" max="12" class="w-full rounded-lg px-3 py-2 text-sm">
+                                </div>
+                            </div>
+                            <div x-show="budgets.facebook > 0" class="mt-3 pt-3 border-t border-white/10 grid grid-cols-3 gap-2 text-center">
+                                <div><div class="text-lg font-semibold text-white" x-text="Math.round((budgets.facebook / 4) * 1000 * (rounds.facebook || 1)).toLocaleString()"></div><div class="text-xs text-dark-500">Impressions</div></div>
+                                <div><div class="text-lg font-semibold text-white" x-text="Math.round((budgets.facebook / 4) * 1000 * 0.005 * (rounds.facebook || 1)).toLocaleString()"></div><div class="text-xs text-dark-500">Clicks</div></div>
+                                <div><div class="text-lg font-semibold text-white" x-text="Math.round((budgets.facebook / 4) * 1000 * 0.005 * 0.2 * (rounds.facebook || 1)).toLocaleString()"></div><div class="text-xs text-dark-500">Conversions</div></div>
+                            </div>
+                        </div>
+
+                        <!-- CTV -->
+                        <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="font-medium text-white flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                        Connected TV (CTV)
+                                    </h3>
+                                    <p class="text-sm text-dark-400 mt-1">$25.00 CPM • Streaming TV ads</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-dark-400 mb-1">Monthly Budget</label>
+                                    <div class="relative">
+                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500">$</span>
+                                        <input type="number" x-model.number="budgets.ctv" @input="calculate()" min="0" step="100" placeholder="0" class="w-full pl-7 rounded-lg px-3 py-2 text-sm">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-dark-400 mb-1">Months</label>
+                                    <input type="number" x-model.number="rounds.ctv" @input="calculate()" min="0" max="12" class="w-full rounded-lg px-3 py-2 text-sm">
+                                </div>
+                            </div>
+                            <div x-show="budgets.ctv > 0" class="mt-3 pt-3 border-t border-white/10 text-center">
+                                <div class="text-lg font-semibold text-white" x-text="Math.round((budgets.ctv / 25) * 1000 * (rounds.ctv || 1)).toLocaleString()"></div>
+                                <div class="text-xs text-dark-500">Estimated Impressions</div>
+                            </div>
+                        </div>
+
+                        <!-- Display -->
+                        <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="font-medium text-white flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        Display Ads
+                                    </h3>
+                                    <p class="text-sm text-dark-400 mt-1">$3.00 CPM • Banner ads across websites</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-dark-400 mb-1">Monthly Budget</label>
+                                    <div class="relative">
+                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500">$</span>
+                                        <input type="number" x-model.number="budgets.display" @input="calculate()" min="0" step="100" placeholder="0" class="w-full pl-7 rounded-lg px-3 py-2 text-sm">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-dark-400 mb-1">Months</label>
+                                    <input type="number" x-model.number="rounds.display" @input="calculate()" min="0" max="12" class="w-full rounded-lg px-3 py-2 text-sm">
+                                </div>
+                            </div>
+                            <div x-show="budgets.display > 0" class="mt-3 pt-3 border-t border-white/10 text-center">
+                                <div class="text-lg font-semibold text-white" x-text="Math.round((budgets.display / 3) * 1000 * (rounds.display || 1)).toLocaleString()"></div>
+                                <div class="text-xs text-dark-500">Estimated Impressions</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -220,13 +373,19 @@ function calculator() {
         loadingDistricts: true,
         loadingElections: true,
 
+        // District autocomplete
+        districtSearch: "",
+        districtDropdownOpen: false,
+
         // User selections
         selectedCounty: "",
         selectedDistricts: [],
         selectedParties: [],
-        selectedElections: [],
-        minElections: "",
-        rounds: { direct_mail: 0, sms: 0, email: 0 },
+        selectedElection: "",
+        selectedVoteType: "",
+        voteHistoryFilters: [],
+        rounds: { direct_mail: 0, sms: 0, email: 0, facebook: 0, ctv: 0, display: 0 },
+        budgets: { facebook: 0, ctv: 0, display: 0 },
         clientName: "",
 
         // Results
@@ -238,6 +397,45 @@ function calculator() {
         discountPercent: {{ settings.discount_percent|default(0) }},
         discountAmount: 0,
         grandTotal: 0,
+
+        // Computed: filtered districts for autocomplete
+        get filteredDistricts() {
+            if (!this.districtSearch) return this.houseDistricts.slice(0, 20);
+            const search = this.districtSearch.toLowerCase();
+            return this.houseDistricts.filter(d => d.name.toLowerCase().includes(search)).slice(0, 20);
+        },
+
+        toggleDistrict(name) {
+            const idx = this.selectedDistricts.indexOf(name);
+            if (idx > -1) {
+                this.selectedDistricts.splice(idx, 1);
+            } else {
+                this.selectedDistricts.push(name);
+            }
+            this.updateVoterCount();
+        },
+
+        addVoteFilter() {
+            if (!this.selectedElection) return;
+            const election = this.elections.find(e => e.code === this.selectedElection);
+            const voteTypeLabels = {
+                '': 'Any Method', 'voted': 'Voted', 'voted_rep': 'Rep Ballot', 'voted_dem': 'Dem Ballot',
+                'absentee': 'Absentee', 'absentee_rep': 'Rep Absentee', 'absentee_dem': 'Dem Absentee', 'in_person': 'In Person'
+            };
+            this.voteHistoryFilters.push({
+                election: this.selectedElection,
+                voteType: this.selectedVoteType,
+                label: `${election?.name || this.selectedElection} - ${voteTypeLabels[this.selectedVoteType] || 'Any'}`
+            });
+            this.selectedElection = "";
+            this.selectedVoteType = "";
+            this.updateVoterCount();
+        },
+
+        removeVoteFilter(idx) {
+            this.voteHistoryFilters.splice(idx, 1);
+            this.updateVoterCount();
+        },
 
         async init() {
             // Load districts and elections in parallel (non-blocking)
@@ -282,8 +480,7 @@ function calculator() {
                         districts: this.selectedDistricts,
                         parties: this.selectedParties,
                         county: this.selectedCounty,
-                        elections: this.selectedElections,
-                        min_elections: this.minElections || null
+                        vote_filters: this.voteHistoryFilters
                     })
                 });
                 const data = await resp.json();
@@ -297,7 +494,9 @@ function calculator() {
         },
 
         async calculate() {
-            if (this.voterCount === 0) {
+            // Allow calculation even with 0 voters (for digital-only campaigns)
+            const hasDigitalBudget = this.budgets.facebook > 0 || this.budgets.ctv > 0 || this.budgets.display > 0;
+            if (this.voterCount === 0 && !hasDigitalBudget) {
                 this.costBreakdown = {};
                 this.subtotal = this.discountAmount = this.grandTotal = 0;
                 return;
@@ -306,7 +505,11 @@ function calculator() {
                 const resp = await fetch("/api/calculate", {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({ voter_count: this.voterCount, rounds: this.rounds })
+                    body: JSON.stringify({
+                        voter_count: this.voterCount,
+                        rounds: this.rounds,
+                        budgets: this.budgets
+                    })
                 });
                 const data = await resp.json();
                 this.costBreakdown = data.breakdown || {};
