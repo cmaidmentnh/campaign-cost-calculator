@@ -473,10 +473,14 @@ function calculator() {
         grandTotal: 0,
 
         // Computed: filtered districts for autocomplete
+        // Supports fuzzy matching: "hills 33" matches "Hillsborough 33"
         get filteredDistricts() {
             if (!this.districtSearch) return this.houseDistricts;
-            const search = this.districtSearch.toLowerCase();
-            return this.houseDistricts.filter(d => d.name.toLowerCase().includes(search));
+            const searchTerms = this.districtSearch.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+            return this.houseDistricts.filter(d => {
+                const name = d.name.toLowerCase();
+                return searchTerms.every(term => name.includes(term));
+            });
         },
 
         // Computed: check if selected election is a primary
