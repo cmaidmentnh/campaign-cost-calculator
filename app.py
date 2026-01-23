@@ -236,9 +236,7 @@ def api_elections():
     result = call_voter_api('/api/available-elections')
     if result:
         elections = result.get('elections', [])
-        # Filter to state-level elections (include both regular and special state elections)
-        state_elections = [e for e in elections if 'STATE' in e.get('category', '').upper()]
-        return jsonify({'elections': state_elections[:30]})
+        return jsonify({'elections': elections})
     return jsonify({'elections': []})
 
 
