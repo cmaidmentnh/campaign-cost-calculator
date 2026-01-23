@@ -64,7 +64,7 @@
                             </div>
                             <!-- Dropdown -->
                             <div x-show="districtDropdownOpen && filteredDistricts.length > 0" x-cloak
-                                 class="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto rounded-xl bg-dark-800 border border-white/10 shadow-xl">
+                                 class="absolute z-50 w-full mt-1 max-h-96 overflow-y-auto rounded-xl bg-dark-800 border border-white/10 shadow-xl">
                                 <template x-for="d in filteredDistricts" :key="d.name">
                                     <div @click="toggleDistrict(d.name)"
                                          class="px-4 py-2.5 cursor-pointer flex items-center justify-between hover:bg-white/5 transition-colors"
@@ -474,9 +474,9 @@ function calculator() {
 
         // Computed: filtered districts for autocomplete
         get filteredDistricts() {
-            if (!this.districtSearch) return this.houseDistricts.slice(0, 20);
+            if (!this.districtSearch) return this.houseDistricts;
             const search = this.districtSearch.toLowerCase();
-            return this.houseDistricts.filter(d => d.name.toLowerCase().includes(search)).slice(0, 20);
+            return this.houseDistricts.filter(d => d.name.toLowerCase().includes(search));
         },
 
         // Computed: check if selected election is a primary
