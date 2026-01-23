@@ -5,13 +5,62 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Campaign Cost Calculator{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            50: "#f8fafc", 100: "#f1f5f9", 200: "#e2e8f0", 300: "#cbd5e1",
+                            400: "#94a3b8", 500: "#64748b", 600: "#475569", 700: "#334155",
+                            800: "#1e293b", 900: "#0f172a", 950: "#020617"
+                        },
+                        accent: { 400: "#60a5fa", 500: "#3b82f6", 600: "#2563eb" }
+                    }
+                }
+            }
+        }
+    </script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        * { font-family: "Inter", sans-serif; }
         [x-cloak] { display: none !important; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+        .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); }
+        .gradient-text { background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        input[type="text"], input[type="password"], input[type="number"], select, textarea {
+            background: rgba(255,255,255,0.05) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: white !important;
+        }
+        input:focus, select:focus, textarea:focus {
+            background: rgba(255,255,255,0.08) !important; border-color: rgba(96,165,250,0.5) !important;
+            box-shadow: 0 0 0 3px rgba(96,165,250,0.1) !important; outline: none !important;
+        }
+        input[type="range"] { -webkit-appearance: none; background: transparent; }
+        input[type="range"]::-webkit-slider-track { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px;
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            border-radius: 50%; cursor: pointer; margin-top: -6px; box-shadow: 0 2px 8px rgba(59,130,246,0.4);
+        }
+        input[type="checkbox"] {
+            -webkit-appearance: none; width: 18px; height: 18px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; cursor: pointer;
+        }
+        input[type="checkbox"]:checked { background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%); border-color: transparent; }
+        input[type="checkbox"]:checked::after { content: "\2713"; display: block; text-align: center; color: white; font-size: 12px; line-height: 16px; }
+        .btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); transition: all 0.2s ease; }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(59,130,246,0.4); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-in { animation: fadeIn 0.4s ease forwards; }
     </style>
     {% block head %}{% endblock %}
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-dark-950 text-white min-h-screen antialiased">
     {% block body %}{% endblock %}
 </body>
 </html>

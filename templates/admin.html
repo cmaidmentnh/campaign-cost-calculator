@@ -3,140 +3,251 @@
 {% block title %}Admin - Campaign Cost Calculator{% endblock %}
 
 {% block body %}
-<div x-data="adminPanel()" class="min-h-screen bg-gray-50">
+<div x-data="adminPanel()" class="min-h-screen">
     <!-- Header -->
-    <header class="bg-blue-900 text-white py-4 shadow-lg">
-        <div class="max-w-6xl mx-auto px-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold">Admin Panel</h1>
+    <header class="glass border-b border-white/5 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-400 to-purple-500 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-white">Admin Panel</h1>
+                    <p class="text-xs text-dark-400">Manage pricing & settings</p>
+                </div>
+            </div>
             <div class="flex items-center gap-4">
-                <a href="{{ url_for('calculator') }}" class="text-blue-200 hover:text-white text-sm">Calculator</a>
-                <a href="{{ url_for('admin_logout') }}" class="text-blue-200 hover:text-white text-sm">Logout</a>
+                <a href="{{ url_for('calculator') }}" class="text-dark-400 hover:text-white text-sm transition-colors flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                    Calculator
+                </a>
+                <a href="{{ url_for('admin_logout') }}" class="text-dark-400 hover:text-red-400 text-sm transition-colors flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                    </svg>
+                    Logout
+                </a>
             </div>
         </div>
     </header>
 
-    <main class="max-w-6xl mx-auto px-4 py-8">
-        <div class="grid lg:grid-cols-2 gap-8">
-            <!-- Pricing -->
-            <div class="bg-white rounded-lg shadow p-6">
-                <h2 class="text-lg font-semibold text-gray-900 mb-4">Pricing</h2>
+    <main class="max-w-6xl mx-auto px-6 py-8">
+        <div class="grid lg:grid-cols-2 gap-6">
+            <!-- Pricing Card -->
+            <div class="glass rounded-2xl p-6 animate-in">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">Pricing</h2>
+                        <p class="text-xs text-dark-400">Configure per-tactic rates</p>
+                    </div>
+                </div>
 
                 <div class="space-y-6">
                     {% for tactic, components in prices.items() %}
-                    <div class="border-b pb-4 last:border-0">
-                        <h3 class="font-medium text-gray-900 mb-3 capitalize">{{ tactic.replace('_', ' ') }}</h3>
-                        {% for comp in components %}
-                        <div class="flex items-center gap-4 mb-2">
-                            <label class="w-24 text-sm text-gray-600 capitalize">{{ comp.component }}</label>
-                            <div class="flex-1">
-                                <input type="number" step="0.001" min="0"
-                                       x-model="prices['{{ tactic }}']['{{ comp.component }}'].price"
-                                       class="w-24 border-gray-300 rounded text-sm">
+                    <div class="border-b border-white/5 pb-5 last:border-0 last:pb-0">
+                        <h3 class="font-medium text-white mb-4 flex items-center gap-2">
+                            {% if tactic == 'direct_mail' %}
+                            <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                            {% elif tactic == 'sms' %}
+                            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                            {% else %}
+                            <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+                            {% endif %}
+                            <span class="capitalize">{{ tactic.replace('_', ' ') }}</span>
+                        </h3>
+                        <div class="space-y-3">
+                            {% for comp in components %}
+                            <div class="flex items-center gap-4">
+                                <label class="w-20 text-sm text-dark-400 capitalize">{{ comp.component }}</label>
+                                <div class="relative flex-1">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500 text-sm">$</span>
+                                    <input type="number" step="0.001" min="0"
+                                           x-model="prices['{{ tactic }}']['{{ comp.component }}'].price"
+                                           class="w-full pl-7 pr-3 py-2 rounded-lg text-sm">
+                                </div>
+                                <span class="text-xs text-dark-500 w-20 text-right">
+                                    {{ 'per round' if comp.is_per_round else 'one-time' }}
+                                </span>
                             </div>
-                            <span class="text-xs text-gray-500">
-                                {{ 'per round' if comp.is_per_round else 'one-time' }}
-                            </span>
+                            {% endfor %}
                         </div>
-                        {% endfor %}
                     </div>
                     {% endfor %}
                 </div>
 
-                <button @click="savePrices()"
-                        class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded">
-                    Save Prices
-                </button>
-                <span x-show="pricesSaved" x-cloak class="ml-2 text-green-600 text-sm">Saved!</span>
+                <div class="mt-6 flex items-center gap-3">
+                    <button @click="savePrices()" class="btn-primary text-white font-medium py-2.5 px-5 rounded-xl text-sm">
+                        Save Prices
+                    </button>
+                    <span x-show="pricesSaved" x-cloak
+                          x-transition:enter="transition ease-out duration-200"
+                          x-transition:enter-start="opacity-0 translate-x-2"
+                          x-transition:enter-end="opacity-100 translate-x-0"
+                          class="text-green-400 text-sm flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Saved!
+                    </span>
+                </div>
             </div>
 
-            <!-- Settings -->
+            <!-- Settings & Password Column -->
             <div class="space-y-6">
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Settings</h2>
-
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-                            <input type="text" x-model="settings.company_name"
-                                   class="w-full border-gray-300 rounded-lg shadow-sm">
+                <!-- Settings Card -->
+                <div class="glass rounded-2xl p-6 animate-in" style="animation-delay: 0.1s">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                            </svg>
                         </div>
-
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Discount %</label>
-                            <input type="number" step="0.1" min="0" max="100" x-model="settings.discount_percent"
-                                   class="w-32 border-gray-300 rounded-lg shadow-sm">
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Notes / Terms</label>
-                            <textarea x-model="settings.notes" rows="3"
-                                      class="w-full border-gray-300 rounded-lg shadow-sm"></textarea>
+                            <h2 class="text-lg font-semibold text-white">Settings</h2>
+                            <p class="text-xs text-dark-400">Company info & terms</p>
                         </div>
                     </div>
 
-                    <button @click="saveSettings()"
-                            class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded">
-                        Save Settings
-                    </button>
-                    <span x-show="settingsSaved" x-cloak class="ml-2 text-green-600 text-sm">Saved!</span>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Company Name</label>
+                            <input type="text" x-model="settings.company_name" placeholder="Your Company Name"
+                                   class="w-full px-4 py-2.5 rounded-xl text-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Discount %</label>
+                            <input type="number" step="0.1" min="0" max="100" x-model="settings.discount_percent"
+                                   class="w-32 px-4 py-2.5 rounded-xl text-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Notes / Terms</label>
+                            <textarea x-model="settings.notes" rows="3" placeholder="Payment terms, conditions, etc."
+                                      class="w-full px-4 py-2.5 rounded-xl text-sm resize-none"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex items-center gap-3">
+                        <button @click="saveSettings()" class="btn-primary text-white font-medium py-2.5 px-5 rounded-xl text-sm">
+                            Save Settings
+                        </button>
+                        <span x-show="settingsSaved" x-cloak
+                              x-transition:enter="transition ease-out duration-200"
+                              x-transition:enter-start="opacity-0 translate-x-2"
+                              x-transition:enter-end="opacity-100 translate-x-0"
+                              class="text-green-400 text-sm flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Saved!
+                        </span>
+                    </div>
                 </div>
 
-                <!-- Change Password -->
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Change Password</h2>
-
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                            <input type="password" x-model="newPassword"
-                                   class="w-full border-gray-300 rounded-lg shadow-sm">
+                <!-- Change Password Card -->
+                <div class="glass rounded-2xl p-6 animate-in" style="animation-delay: 0.2s">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                            </svg>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-                            <input type="password" x-model="confirmPassword"
-                                   class="w-full border-gray-300 rounded-lg shadow-sm">
+                            <h2 class="text-lg font-semibold text-white">Change Password</h2>
+                            <p class="text-xs text-dark-400">Update admin credentials</p>
                         </div>
                     </div>
 
-                    <button @click="changePassword()"
-                            class="mt-4 bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded">
-                        Change Password
-                    </button>
-                    <span x-show="passwordChanged" x-cloak class="ml-2 text-green-600 text-sm">Changed!</span>
-                    <span x-show="passwordError" x-cloak class="ml-2 text-red-600 text-sm" x-text="passwordError"></span>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">New Password</label>
+                            <input type="password" x-model="newPassword" placeholder="Enter new password"
+                                   class="w-full px-4 py-2.5 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Confirm Password</label>
+                            <input type="password" x-model="confirmPassword" placeholder="Confirm new password"
+                                   class="w-full px-4 py-2.5 rounded-xl text-sm">
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex items-center gap-3">
+                        <button @click="changePassword()" class="bg-dark-700 hover:bg-dark-600 text-white font-medium py-2.5 px-5 rounded-xl text-sm transition-colors">
+                            Change Password
+                        </button>
+                        <span x-show="passwordChanged" x-cloak
+                              x-transition:enter="transition ease-out duration-200"
+                              x-transition:enter-start="opacity-0 translate-x-2"
+                              x-transition:enter-end="opacity-100 translate-x-0"
+                              class="text-green-400 text-sm flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Changed!
+                        </span>
+                        <span x-show="passwordError" x-cloak class="text-red-400 text-sm" x-text="passwordError"></span>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Recent Quotes -->
-        <div class="bg-white rounded-lg shadow p-6 mt-8">
-            <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Quotes</h2>
+        <div class="glass rounded-2xl p-6 mt-6 animate-in" style="animation-delay: 0.3s">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-white">Recent Quotes</h2>
+                    <p class="text-xs text-dark-400">Saved proposal history</p>
+                </div>
+            </div>
 
             {% if quotes %}
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
+                <table class="w-full">
                     <thead>
-                        <tr>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Voters</th>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                        <tr class="border-b border-white/10">
+                            <th class="px-4 py-3 text-left text-xs font-medium text-dark-400 uppercase tracking-wider">Date</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-dark-400 uppercase tracking-wider">Client</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-dark-400 uppercase tracking-wider">Voters</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-dark-400 uppercase tracking-wider">Total</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100">
+                    <tbody class="divide-y divide-white/5">
                         {% for q in quotes %}
-                        <tr>
-                            <td class="px-4 py-2 text-sm text-gray-600">{{ q.created_at[:16] }}</td>
-                            <td class="px-4 py-2 text-sm text-gray-900">{{ q.client_name or '(unnamed)' }}</td>
-                            <td class="px-4 py-2 text-sm text-gray-600">{{ "{:,}".format(q.voter_count) }}</td>
-                            <td class="px-4 py-2 text-sm font-medium text-gray-900">${{ "{:,.2f}".format(q.grand_total) }}</td>
+                        <tr class="hover:bg-white/[0.02] transition-colors">
+                            <td class="px-4 py-3 text-sm text-dark-300">{{ q.created_at[:16] }}</td>
+                            <td class="px-4 py-3 text-sm text-white font-medium">{{ q.client_name or '(unnamed)' }}</td>
+                            <td class="px-4 py-3 text-sm text-dark-300">{{ "{:,}".format(q.voter_count) }}</td>
+                            <td class="px-4 py-3 text-sm font-semibold text-green-400">${{ "{:,.2f}".format(q.grand_total) }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
             {% else %}
-            <p class="text-gray-500 text-sm">No quotes saved yet.</p>
+            <div class="text-center py-8">
+                <div class="w-12 h-12 mx-auto mb-3 rounded-xl bg-dark-800 flex items-center justify-center">
+                    <svg class="w-6 h-6 text-dark-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <p class="text-dark-500 text-sm">No quotes saved yet</p>
+            </div>
             {% endif %}
         </div>
     </main>
