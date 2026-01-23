@@ -313,11 +313,16 @@ def api_calculate():
 
     discount_pct = float(settings.get('discount_percent', 0)) / 100
 
+    # Match rates for tactics (percentage of voters we can reach)
+    mail_match_rate = float(settings.get('mail_match_rate', 70)) / 100  # Default 70% have valid mailing addresses
+    sms_match_rate = float(settings.get('sms_match_rate', 40)) / 100
+    email_match_rate = float(settings.get('email_match_rate', 50)) / 100  # Default 50% for email
+
     # Voter contact tactics (per-unit pricing)
     voter_tactics = {
-        'direct_mail': {'name': 'Direct Mail', 'components': ['postage', 'printing']},
-        'sms': {'name': 'SMS/Text', 'components': ['append', 'send']},
-        'email': {'name': 'Email', 'components': ['append', 'send']},
+        'direct_mail': {'name': 'Direct Mail', 'components': ['postage', 'printing'], 'match_rate': mail_match_rate},
+        'sms': {'name': 'SMS/Text', 'components': ['append', 'send'], 'match_rate': sms_match_rate},
+        'email': {'name': 'Email', 'components': ['append', 'send'], 'match_rate': email_match_rate},
     }
 
     # Digital advertising tactics - read CPMs from database
@@ -346,7 +351,11 @@ def api_calculate():
         if num_rounds == 0:
             continue
 
-        volume_discount = get_volume_discount(tactic_key, voter_count)
+        # Apply match rate to get effective voter count for this tactic
+        match_rate = tactic_info.get('match_rate', 1.0)
+        effective_voters = int(voter_count * match_rate)
+
+        volume_discount = get_volume_discount(tactic_key, effective_voters)
         tactic_total = 0
         components = []
 
@@ -356,13 +365,13 @@ def api_calculate():
             unit_price = base_price * (1 - volume_discount)
 
             if price_info['is_per_round']:
-                cost = voter_count * num_rounds * unit_price
-                units = voter_count * num_rounds
-                desc = f"{voter_count:,} x {num_rounds} x ${unit_price:.3f}"
+                cost = effective_voters * num_rounds * unit_price
+                units = effective_voters * num_rounds
+                desc = f"{effective_voters:,} x {num_rounds} x ${unit_price:.3f}"
             else:
-                cost = voter_count * unit_price
-                units = voter_count
-                desc = f"{voter_count:,} x ${unit_price:.3f} (one-time)"
+                cost = effective_voters * unit_price
+                units = effective_voters
+                desc = f"{effective_voters:,} x ${unit_price:.3f} (one-time)"
 
             components.append({
                 'name': comp.replace('_', ' ').title(),
@@ -380,7 +389,9 @@ def api_calculate():
             'rounds': num_rounds,
             'components': components,
             'subtotal': tactic_total,
-            'volume_discount': volume_discount * 100
+            'volume_discount': volume_discount * 100,
+            'match_rate': match_rate * 100,
+            'effective_voters': effective_voters
         }
         grand_total += tactic_total
 
