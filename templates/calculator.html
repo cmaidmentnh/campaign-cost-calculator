@@ -21,19 +21,18 @@
     </header>
 
     <main class="max-w-7xl mx-auto px-6 py-8">
-        {% if districts.geocoding_progress and districts.geocoding_progress.percent < 100 %}
-        <div class="glass rounded-2xl p-4 mb-8 animate-in border-l-4 border-amber-500">
+        <!-- Geocoding Progress Banner -->
+        <div x-show="geocodingProgress && geocodingProgress.percent < 100" x-cloak class="glass rounded-2xl p-4 mb-8 animate-in border-l-4 border-amber-500">
             <div class="flex items-center gap-4">
                 <div class="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
                     <svg class="w-5 h-5 text-amber-400 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                 </div>
                 <div>
                     <p class="font-medium text-amber-200">District geocoding in progress</p>
-                    <p class="text-sm text-dark-400">{{ "{:,.0f}".format(districts.geocoding_progress.geocoded) }} of {{ "{:,.0f}".format(districts.geocoding_progress.total) }} voters ({{ districts.geocoding_progress.percent }}%)</p>
+                    <p class="text-sm text-dark-400"><span x-text="geocodingProgress?.geocoded?.toLocaleString()"></span> of <span x-text="geocodingProgress?.total?.toLocaleString()"></span> voters (<span x-text="geocodingProgress?.percent"></span>%)</p>
                 </div>
             </div>
         </div>
-        {% endif %}
 
         <div class="grid lg:grid-cols-3 gap-8">
             <div class="lg:col-span-2 space-y-6">
@@ -43,26 +42,35 @@
                         <div class="w-8 h-8 rounded-lg bg-accent-500/20 flex items-center justify-center"><span class="text-accent-400 font-semibold text-sm">1</span></div>
                         <h2 class="text-lg font-semibold">Select Geography</h2>
                     </div>
-                    <div class="mb-5">
-                        <label class="block text-sm font-medium text-dark-300 mb-2">County</label>
-                        <select x-model="selectedCounty" @change="updateVoterCount()" class="w-full rounded-xl px-4 py-3">
-                            <option value="">All Counties</option>
-                            {% for county in districts.counties %}<option value="{{ county.name }}">{{ county.name }} ({{ "{:,}".format(county.voter_count) }})</option>{% endfor %}
-                        </select>
+
+                    <!-- Loading state -->
+                    <div x-show="loadingDistricts" class="flex items-center gap-3 py-4">
+                        <div class="w-5 h-5 rounded-full border-2 border-accent-500/30 border-t-accent-500 animate-spin"></div>
+                        <span class="text-dark-400 text-sm">Loading districts...</span>
                     </div>
-                    {% if districts.house_districts %}
-                    <div>
-                        <label class="block text-sm font-medium text-dark-300 mb-2">House Districts</label>
-                        <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-3 rounded-xl bg-white/5">
-                            {% for d in districts.house_districts %}
-                            <label class="inline-flex items-center px-3 py-1.5 rounded-lg cursor-pointer transition-all text-sm" :class="selectedDistricts.includes('{{ d.name }}') ? 'bg-accent-500/30 text-accent-300 border border-accent-500/50' : 'bg-white/5 text-dark-300 border border-white/10 hover:bg-white/10'">
-                                <input type="checkbox" value="{{ d.name }}" x-model="selectedDistricts" @change="updateVoterCount()" class="sr-only">
-                                <span>{{ d.name }}</span><span class="text-dark-500 ml-1.5 text-xs">({{ "{:,}".format(d.voter_count) }})</span>
-                            </label>
-                            {% endfor %}
+
+                    <div x-show="!loadingDistricts" x-cloak>
+                        <div class="mb-5">
+                            <label class="block text-sm font-medium text-dark-300 mb-2">County</label>
+                            <select x-model="selectedCounty" @change="updateVoterCount()" class="w-full rounded-xl px-4 py-3">
+                                <option value="">All Counties</option>
+                                <template x-for="county in counties" :key="county.name">
+                                    <option :value="county.name" x-text="county.name + ' (' + county.voter_count.toLocaleString() + ')'"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div x-show="houseDistricts.length > 0">
+                            <label class="block text-sm font-medium text-dark-300 mb-2">House Districts</label>
+                            <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-3 rounded-xl bg-white/5">
+                                <template x-for="d in houseDistricts" :key="d.name">
+                                    <label class="inline-flex items-center px-3 py-1.5 rounded-lg cursor-pointer transition-all text-sm" :class="selectedDistricts.includes(d.name) ? 'bg-accent-500/30 text-accent-300 border border-accent-500/50' : 'bg-white/5 text-dark-300 border border-white/10 hover:bg-white/10'">
+                                        <input type="checkbox" :value="d.name" x-model="selectedDistricts" @change="updateVoterCount()" class="sr-only">
+                                        <span x-text="d.name"></span><span class="text-dark-500 ml-1.5 text-xs" x-text="'(' + d.voter_count.toLocaleString() + ')'"></span>
+                                    </label>
+                                </template>
+                            </div>
                         </div>
                     </div>
-                    {% endif %}
                 </div>
 
                 <!-- Party -->
@@ -85,16 +93,29 @@
                         <div class="w-8 h-8 rounded-lg bg-accent-500/20 flex items-center justify-center"><span class="text-accent-400 font-semibold text-sm">3</span></div>
                         <h2 class="text-lg font-semibold">Filter by Vote History</h2>
                     </div>
-                    <div class="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2">
-                        {% for e in elections %}
-                        <label class="inline-flex items-center gap-3 cursor-pointer group text-sm"><input type="checkbox" value="{{ e.code }}" x-model="selectedElections" @change="updateVoterCount()"><span class="text-dark-300 group-hover:text-white transition-colors">{{ e.name }}</span></label>
-                        {% endfor %}
+
+                    <!-- Loading state -->
+                    <div x-show="loadingElections" class="flex items-center gap-3 py-4">
+                        <div class="w-5 h-5 rounded-full border-2 border-accent-500/30 border-t-accent-500 animate-spin"></div>
+                        <span class="text-dark-400 text-sm">Loading elections...</span>
                     </div>
-                    <div x-show="selectedElections.length > 0" class="mt-4 pt-4 border-t border-white/10">
-                        <label class="block text-sm font-medium text-dark-300 mb-2">Minimum elections</label>
-                        <select x-model="minElections" @change="updateVoterCount()" class="rounded-xl px-4 py-2.5">
-                            <option value="">Any</option><option value="1">At least 1</option><option value="2">At least 2</option><option value="3">At least 3</option><option value="4">At least 4</option>
-                        </select>
+
+                    <div x-show="!loadingElections" x-cloak>
+                        <div x-show="elections.length === 0" class="text-dark-500 text-sm">No elections available</div>
+                        <div x-show="elections.length > 0" class="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2">
+                            <template x-for="e in elections" :key="e.code">
+                                <label class="inline-flex items-center gap-3 cursor-pointer group text-sm">
+                                    <input type="checkbox" :value="e.code" x-model="selectedElections" @change="updateVoterCount()">
+                                    <span class="text-dark-300 group-hover:text-white transition-colors" x-text="e.name"></span>
+                                </label>
+                            </template>
+                        </div>
+                        <div x-show="selectedElections.length > 0" class="mt-4 pt-4 border-t border-white/10">
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Minimum elections</label>
+                            <select x-model="minElections" @change="updateVoterCount()" class="rounded-xl px-4 py-2.5">
+                                <option value="">Any</option><option value="1">At least 1</option><option value="2">At least 2</option><option value="3">At least 3</option><option value="4">At least 4</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -190,39 +211,138 @@
 <script>
 function calculator() {
     return {
-        selectedCounty: "", selectedDistricts: [], selectedParties: [], selectedElections: [], minElections: "",
-        rounds: { direct_mail: 0, sms: 0, email: 0 }, clientName: "", loading: false, voterCount: 0, partyBreakdown: null,
-        costBreakdown: {}, subtotal: 0, discountPercent: {{ settings.discount_percent|default(0) }}, discountAmount: 0, grandTotal: 0,
-        init() { this.updateVoterCount(); },
+        // Data loaded async
+        counties: [],
+        houseDistricts: [],
+        senateDistricts: [],
+        elections: [],
+        geocodingProgress: null,
+        loadingDistricts: true,
+        loadingElections: true,
+
+        // User selections
+        selectedCounty: "",
+        selectedDistricts: [],
+        selectedParties: [],
+        selectedElections: [],
+        minElections: "",
+        rounds: { direct_mail: 0, sms: 0, email: 0 },
+        clientName: "",
+
+        // Results
+        loading: false,
+        voterCount: 0,
+        partyBreakdown: null,
+        costBreakdown: {},
+        subtotal: 0,
+        discountPercent: {{ settings.discount_percent|default(0) }},
+        discountAmount: 0,
+        grandTotal: 0,
+
+        async init() {
+            // Load districts and elections in parallel (non-blocking)
+            this.loadDistricts();
+            this.loadElections();
+            // Initial voter count
+            this.updateVoterCount();
+        },
+
+        async loadDistricts() {
+            try {
+                const resp = await fetch("/api/districts");
+                const data = await resp.json();
+                this.counties = data.counties || [];
+                this.houseDistricts = data.house_districts || [];
+                this.senateDistricts = data.senate_districts || [];
+                this.geocodingProgress = data.geocoding_progress || null;
+            } catch (e) {
+                console.error("Failed to load districts:", e);
+            }
+            this.loadingDistricts = false;
+        },
+
+        async loadElections() {
+            try {
+                const resp = await fetch("/api/elections");
+                const data = await resp.json();
+                this.elections = data.elections || [];
+            } catch (e) {
+                console.error("Failed to load elections:", e);
+            }
+            this.loadingElections = false;
+        },
+
         async updateVoterCount() {
             this.loading = true;
             try {
-                const resp = await fetch("/api/voter-count", { method: "POST", headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({ districts: this.selectedDistricts, parties: this.selectedParties, county: this.selectedCounty, elections: this.selectedElections, min_elections: this.minElections || null })
+                const resp = await fetch("/api/voter-count", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        districts: this.selectedDistricts,
+                        parties: this.selectedParties,
+                        county: this.selectedCounty,
+                        elections: this.selectedElections,
+                        min_elections: this.minElections || null
+                    })
                 });
                 const data = await resp.json();
                 this.voterCount = data.total_voters || 0;
                 this.partyBreakdown = data.by_party || null;
                 this.calculate();
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error(e);
+            }
             this.loading = false;
         },
+
         async calculate() {
-            if (this.voterCount === 0) { this.costBreakdown = {}; this.subtotal = this.discountAmount = this.grandTotal = 0; return; }
+            if (this.voterCount === 0) {
+                this.costBreakdown = {};
+                this.subtotal = this.discountAmount = this.grandTotal = 0;
+                return;
+            }
             try {
-                const resp = await fetch("/api/calculate", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({ voter_count: this.voterCount, rounds: this.rounds }) });
+                const resp = await fetch("/api/calculate", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ voter_count: this.voterCount, rounds: this.rounds })
+                });
                 const data = await resp.json();
-                this.costBreakdown = data.breakdown || {}; this.subtotal = data.subtotal || 0; this.discountPercent = data.discount_percent || 0; this.discountAmount = data.discount_amount || 0; this.grandTotal = data.grand_total || 0;
-            } catch (e) { console.error(e); }
+                this.costBreakdown = data.breakdown || {};
+                this.subtotal = data.subtotal || 0;
+                this.discountPercent = data.discount_percent || 0;
+                this.discountAmount = data.discount_amount || 0;
+                this.grandTotal = data.grand_total || 0;
+            } catch (e) {
+                console.error(e);
+            }
         },
+
         async saveQuote() {
             try {
-                const resp = await fetch("/api/save-quote", { method: "POST", headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({ client_name: this.clientName, districts: this.selectedDistricts, filters: { county: this.selectedCounty, parties: this.selectedParties, elections: this.selectedElections, min_elections: this.minElections }, voter_count: this.voterCount, breakdown: this.costBreakdown, grand_total: this.grandTotal })
+                const resp = await fetch("/api/save-quote", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        client_name: this.clientName,
+                        districts: this.selectedDistricts,
+                        filters: {
+                            county: this.selectedCounty,
+                            parties: this.selectedParties,
+                            elections: this.selectedElections,
+                            min_elections: this.minElections
+                        },
+                        voter_count: this.voterCount,
+                        breakdown: this.costBreakdown,
+                        grand_total: this.grandTotal
+                    })
                 });
                 const data = await resp.json();
                 if (data.success) alert("Quote saved! ID: " + data.quote_id);
-            } catch (e) { alert("Failed to save quote"); }
+            } catch (e) {
+                alert("Failed to save quote");
+            }
         }
     };
 }

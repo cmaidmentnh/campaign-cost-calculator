@@ -173,23 +173,35 @@ def calculator():
         if p['is_per_round']:
             price_data[p['tactic']]['total_per_round'] += p['price']
 
-    # Get districts from voter API
-    districts_data = call_voter_api('/api/districts')
-    if not districts_data:
-        districts_data = {'house_districts': [], 'senate_districts': [], 'counties': [], 'geocoding_progress': {}}
-
-    # Get elections from voter API
-    elections_data = call_voter_api('/api/available-elections')
-    elections = elections_data.get('elections', []) if elections_data else []
-
-    # Filter to state-level elections
-    state_elections = [e for e in elections if e.get('type', '').upper() in ('STATE GENERAL', 'STATE PRIMARY')]
-
+    # Don't block page load - districts/elections loaded via AJAX
     return render_template('calculator.html',
                           prices=price_data,
                           settings=settings,
-                          districts=districts_data,
-                          elections=state_elections[:20])
+                          districts={'house_districts': [], 'senate_districts': [], 'counties': [], 'geocoding_progress': {}},
+                          elections=[])
+
+
+@app.route('/api/districts')
+@csrf.exempt
+def api_districts():
+    """Get districts list (proxied from voter API)."""
+    result = call_voter_api('/api/districts')
+    if result:
+        return jsonify(result)
+    return jsonify({'house_districts': [], 'senate_districts': [], 'counties': [], 'geocoding_progress': {}})
+
+
+@app.route('/api/elections')
+@csrf.exempt
+def api_elections():
+    """Get elections list (proxied from voter API)."""
+    result = call_voter_api('/api/available-elections')
+    if result:
+        elections = result.get('elections', [])
+        # Filter to state-level elections
+        state_elections = [e for e in elections if e.get('type', '').upper() in ('STATE GENERAL', 'STATE PRIMARY')]
+        return jsonify({'elections': state_elections[:20]})
+    return jsonify({'elections': []})
 
 
 @app.route('/api/voter-count', methods=['POST'])
