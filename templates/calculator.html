@@ -148,7 +148,7 @@
                         <div x-show="voteHistoryFilters.length > 0" class="pt-2">
                             <label class="block text-sm font-medium text-dark-300 mb-2">Active Filters</label>
                             <div class="flex flex-wrap gap-2">
-                                <template x-for="(filter, idx) in voteHistoryFilters" :key="idx">
+                                <template x-for="(filter, idx) in voteHistoryFilters" :key="filter.key || idx">
                                     <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-500/20 text-accent-300 text-sm border border-accent-500/30">
                                         <span x-text="filter.label"></span>
                                         <button @click="removeVoteFilter(idx)" class="hover:text-white transition-colors">&times;</button>
@@ -159,11 +159,33 @@
 
                         <!-- Election dropdown -->
                         <div>
-                            <label class="block text-sm font-medium text-dark-300 mb-2">Add Election Filter</label>
-                            <select x-model="selectedElection" class="w-full rounded-xl px-4 py-3">
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Select Election</label>
+                            <select x-model="selectedElection" @change="selectedVoteMethod = 'any'" class="w-full rounded-xl px-4 py-3">
                                 <option value="">Select an election...</option>
                                 <template x-for="e in elections" :key="e.code">
                                     <option :value="e.code" x-text="e.name"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        <!-- Vote Method dropdown (shows when election selected) -->
+                        <div x-show="selectedElection" x-cloak>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Vote Method</label>
+                            <select x-model="selectedVoteMethod" class="w-full rounded-xl px-4 py-3">
+                                <option value="any">Voted (Any Method)</option>
+                                <option value="absentee">Voted Absentee</option>
+                                <option value="regular">Voted In Person</option>
+                                <template x-if="selectedElectionIsPrimary">
+                                    <option value="rep">Voted Republican Ballot</option>
+                                </template>
+                                <template x-if="selectedElectionIsPrimary">
+                                    <option value="rep_absentee">Voted Republican Absentee</option>
+                                </template>
+                                <template x-if="selectedElectionIsPrimary">
+                                    <option value="dem">Voted Democratic Ballot</option>
+                                </template>
+                                <template x-if="selectedElectionIsPrimary">
+                                    <option value="dem_absentee">Voted Democratic Absentee</option>
                                 </template>
                             </select>
                         </div>
@@ -435,6 +457,7 @@ function calculator() {
         selectedDistricts: [],
         selectedParties: [],
         selectedElection: "",
+        selectedVoteMethod: "any",
         voteHistoryFilters: [],
         voteLogic: "any",  // "any" (OR) or "all" (AND)
         rounds: { direct_mail: 0, sms: 0, email: 0 },
@@ -460,6 +483,13 @@ function calculator() {
             if (!this.districtSearch) return this.houseDistricts.slice(0, 20);
             const search = this.districtSearch.toLowerCase();
             return this.houseDistricts.filter(d => d.name.toLowerCase().includes(search)).slice(0, 20);
+        },
+
+        // Computed: check if selected election is a primary
+        get selectedElectionIsPrimary() {
+            if (!this.selectedElection) return false;
+            const election = this.elections.find(e => e.code === this.selectedElection);
+            return election?.is_primary || false;
         },
 
         // Computed: matched voters for digital targeting
@@ -492,16 +522,35 @@ function calculator() {
         addVoteFilter() {
             if (!this.selectedElection) return;
             const election = this.elections.find(e => e.code === this.selectedElection);
+            const filterKey = `${this.selectedElection}|${this.selectedVoteMethod}`;
             // Check if already added
-            if (this.voteHistoryFilters.some(f => f.election === this.selectedElection)) {
+            if (this.voteHistoryFilters.some(f => f.key === filterKey)) {
                 return;
             }
+            // Build vote method label
+            const methodLabels = {
+                'any': 'Voted',
+                'absentee': 'Voted Absentee',
+                'regular': 'Voted In Person',
+                'rep': 'Voted Republican',
+                'rep_absentee': 'Voted Rep Absentee',
+                'dem': 'Voted Democratic',
+                'dem_absentee': 'Voted Dem Absentee'
+            };
+            const methodLabel = methodLabels[this.selectedVoteMethod] || 'Voted';
+            const label = `${election?.name || this.selectedElection} - ${methodLabel}`;
+
             this.voteHistoryFilters.push({
+                key: filterKey,
                 election: this.selectedElection,
+                election_name: election?.election_name,
+                election_date: election?.election_date,
+                vote_method: this.selectedVoteMethod,
                 name: election?.name || this.selectedElection,
-                label: election?.name || this.selectedElection
+                label: label
             });
             this.selectedElection = "";
+            this.selectedVoteMethod = "any";
             this.updateVoterCount();
         },
 
@@ -546,10 +595,14 @@ function calculator() {
         async updateVoterCount() {
             this.loading = true;
             try {
-                // Build elections list from filters
-                const elections = this.voteHistoryFilters.map(f => f.name);
+                // Build vote filters with method info
+                const voteFilters = this.voteHistoryFilters.map(f => ({
+                    election_name: f.election_name,
+                    election_date: f.election_date,
+                    vote_method: f.vote_method
+                }));
                 // min_elections: 1 for ANY (OR), count for ALL (AND)
-                const minElections = this.voteLogic === 'all' ? elections.length : (elections.length > 0 ? 1 : 0);
+                const minElections = this.voteLogic === 'all' ? voteFilters.length : (voteFilters.length > 0 ? 1 : 0);
 
                 const resp = await fetch("/api/voter-count", {
                     method: "POST",
@@ -558,7 +611,7 @@ function calculator() {
                         districts: this.selectedDistricts,
                         parties: this.selectedParties,
                         county: this.selectedCounty,
-                        elections: elections,
+                        vote_filters: voteFilters,
                         min_elections: minElections
                     })
                 });

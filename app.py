@@ -253,9 +253,11 @@ def api_voter_count():
         params['party'] = ','.join(data['parties'])
     if data.get('county'):
         params['county'] = data['county']
-    if data.get('elections'):
-        # Elections are passed as full names
-        params['elections'] = ','.join(data['elections'])
+
+    # Handle vote filters (new format with vote_method)
+    if data.get('vote_filters'):
+        import json
+        params['vote_filters'] = json.dumps(data['vote_filters'])
     if data.get('min_elections'):
         params['min_elections'] = data['min_elections']
 
