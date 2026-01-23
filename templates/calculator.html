@@ -65,11 +65,14 @@
                             <!-- Dropdown -->
                             <div x-show="districtDropdownOpen && filteredDistricts.length > 0" x-cloak
                                  class="absolute z-50 w-full mt-1 max-h-96 overflow-y-auto rounded-xl bg-dark-800 border border-white/10 shadow-xl">
-                                <template x-for="d in filteredDistricts" :key="d.name">
-                                    <div @click="toggleDistrict(d.name)"
+                                <template x-for="d in filteredDistricts" :key="d.name + (d.isFloterial ? '-f' : '')">
+                                    <div @click="toggleDistrict(d.name, d.isFloterial)"
                                          class="px-4 py-2.5 cursor-pointer flex items-center justify-between hover:bg-white/5 transition-colors"
                                          :class="selectedDistricts.includes(d.name) ? 'bg-accent-500/20' : ''">
-                                        <span class="text-sm" x-text="d.name"></span>
+                                        <span class="text-sm">
+                                            <span x-text="d.name"></span>
+                                            <span x-show="d.isFloterial" class="ml-1.5 text-xs text-purple-400 font-medium">(F)</span>
+                                        </span>
                                         <div class="flex items-center gap-2">
                                             <span class="text-xs text-dark-500" x-text="d.voter_count.toLocaleString() + ' voters'"></span>
                                             <svg x-show="selectedDistricts.includes(d.name)" class="w-4 h-4 text-accent-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
@@ -436,6 +439,7 @@ function calculator() {
         // Data loaded async
         counties: [],
         houseDistricts: [],
+        floterialDistricts: [],
         senateDistricts: [],
         elections: [],
         geocodingProgress: null,
@@ -472,12 +476,20 @@ function calculator() {
         discountAmount: 0,
         grandTotal: 0,
 
+        // Computed: all districts (base + floterial) for autocomplete
+        get allDistricts() {
+            // Combine base and floterial, marking floterials
+            const base = this.houseDistricts.map(d => ({...d, isFloterial: false}));
+            const flot = this.floterialDistricts.map(d => ({...d, isFloterial: true}));
+            return [...base, ...flot].sort(this.naturalSort);
+        },
+
         // Computed: filtered districts for autocomplete
         // Supports fuzzy matching: "hills 33" matches "Hillsborough 33"
         get filteredDistricts() {
-            if (!this.districtSearch) return this.houseDistricts;
+            if (!this.districtSearch) return this.allDistricts;
             const searchTerms = this.districtSearch.toLowerCase().split(/\s+/).filter(t => t.length > 0);
-            return this.houseDistricts.filter(d => {
+            return this.allDistricts.filter(d => {
                 const name = d.name.toLowerCase();
                 return searchTerms.every(term => name.includes(term));
             });
@@ -507,7 +519,7 @@ function calculator() {
             return (impressions / 1000) * cpm;
         },
 
-        toggleDistrict(name) {
+        toggleDistrict(name, isFloterial = false) {
             const idx = this.selectedDistricts.indexOf(name);
             if (idx > -1) {
                 this.selectedDistricts.splice(idx, 1);
@@ -576,6 +588,7 @@ function calculator() {
                 const data = await resp.json();
                 this.counties = data.counties || [];
                 this.houseDistricts = (data.house_districts || []).sort(this.naturalSort);
+                this.floterialDistricts = (data.floterial_districts || []).sort(this.naturalSort);
                 this.senateDistricts = (data.senate_districts || []).sort(this.naturalSort);
                 this.geocodingProgress = data.geocoding_progress || null;
             } catch (e) {
