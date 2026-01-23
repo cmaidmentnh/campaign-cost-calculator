@@ -124,35 +124,28 @@
                     </div>
 
                     <div x-show="!loadingElections" x-cloak class="space-y-4">
-                        <!-- Election dropdown -->
-                        <div>
-                            <label class="block text-sm font-medium text-dark-300 mb-2">Election</label>
-                            <select x-model="selectedElection" @change="updateVoterCount()" class="w-full rounded-xl px-4 py-3">
-                                <option value="">All Elections</option>
-                                <template x-for="e in elections" :key="e.code">
-                                    <option :value="e.code" x-text="e.name"></option>
-                                </template>
-                            </select>
-                        </div>
-
-                        <!-- Vote Type dropdown -->
-                        <div>
-                            <label class="block text-sm font-medium text-dark-300 mb-2">Vote Type</label>
-                            <select x-model="selectedVoteType" @change="updateVoterCount()" class="w-full rounded-xl px-4 py-3">
-                                <option value="">Any Method</option>
-                                <option value="voted">Voted (Any Method)</option>
-                                <option value="voted_rep">Voted Republican Ballot</option>
-                                <option value="voted_dem">Voted Democratic Ballot</option>
-                                <option value="absentee">Voted Absentee</option>
-                                <option value="absentee_rep">Voted Republican Absentee</option>
-                                <option value="absentee_dem">Voted Democratic Absentee</option>
-                                <option value="in_person">Voted In Person</option>
-                            </select>
-                            <p x-show="selectedVoteType && selectedVoteType.includes('rep') || selectedVoteType && selectedVoteType.includes('dem')" class="mt-2 text-xs text-amber-400">Note: Party ballots only apply to primary elections</p>
+                        <!-- AND/OR Logic Toggle (shows when 2+ filters) -->
+                        <div x-show="voteHistoryFilters.length >= 1" class="p-3 rounded-xl bg-white/5 border border-white/10">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-dark-300">Match voters who voted in:</span>
+                                <div class="flex rounded-lg overflow-hidden border border-white/20">
+                                    <button @click="voteLogic = 'any'; updateVoterCount()"
+                                            :class="voteLogic === 'any' ? 'bg-accent-500 text-white' : 'bg-transparent text-dark-400 hover:text-white'"
+                                            class="px-3 py-1.5 text-sm font-medium transition-colors">
+                                        ANY (OR)
+                                    </button>
+                                    <button @click="voteLogic = 'all'; updateVoterCount()"
+                                            :class="voteLogic === 'all' ? 'bg-accent-500 text-white' : 'bg-transparent text-dark-400 hover:text-white'"
+                                            class="px-3 py-1.5 text-sm font-medium transition-colors border-l border-white/20">
+                                        ALL (AND)
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-dark-500 mt-2" x-text="voteLogic === 'any' ? 'Includes voters who voted in at least ONE of the selected elections' : 'Only includes voters who voted in ALL of the selected elections'"></p>
                         </div>
 
                         <!-- Selected vote history filters -->
-                        <div x-show="voteHistoryFilters.length > 0" class="pt-4 border-t border-white/10">
+                        <div x-show="voteHistoryFilters.length > 0" class="pt-2">
                             <label class="block text-sm font-medium text-dark-300 mb-2">Active Filters</label>
                             <div class="flex flex-wrap gap-2">
                                 <template x-for="(filter, idx) in voteHistoryFilters" :key="idx">
@@ -164,11 +157,24 @@
                             </div>
                         </div>
 
+                        <!-- Election dropdown -->
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Add Election Filter</label>
+                            <select x-model="selectedElection" class="w-full rounded-xl px-4 py-3">
+                                <option value="">Select an election...</option>
+                                <template x-for="e in elections" :key="e.code">
+                                    <option :value="e.code" x-text="e.name"></option>
+                                </template>
+                            </select>
+                        </div>
+
                         <!-- Add filter button -->
                         <button x-show="selectedElection" @click="addVoteFilter()"
                                 class="w-full py-2.5 rounded-xl border border-dashed border-white/20 text-dark-400 hover:text-white hover:border-white/40 transition-colors text-sm">
-                            + Add Vote History Filter
+                            + Add This Election Filter
                         </button>
+
+                        <p x-show="voteHistoryFilters.length === 0" class="text-xs text-dark-500">Select elections to filter by vote history</p>
                     </div>
                 </div>
 
@@ -429,8 +435,8 @@ function calculator() {
         selectedDistricts: [],
         selectedParties: [],
         selectedElection: "",
-        selectedVoteType: "",
         voteHistoryFilters: [],
+        voteLogic: "any",  // "any" (OR) or "all" (AND)
         rounds: { direct_mail: 0, sms: 0, email: 0 },
         clientName: "",
 
@@ -486,17 +492,16 @@ function calculator() {
         addVoteFilter() {
             if (!this.selectedElection) return;
             const election = this.elections.find(e => e.code === this.selectedElection);
-            const voteTypeLabels = {
-                '': 'Any Method', 'voted': 'Voted', 'voted_rep': 'Rep Ballot', 'voted_dem': 'Dem Ballot',
-                'absentee': 'Absentee', 'absentee_rep': 'Rep Absentee', 'absentee_dem': 'Dem Absentee', 'in_person': 'In Person'
-            };
+            // Check if already added
+            if (this.voteHistoryFilters.some(f => f.election === this.selectedElection)) {
+                return;
+            }
             this.voteHistoryFilters.push({
                 election: this.selectedElection,
-                voteType: this.selectedVoteType,
-                label: `${election?.name || this.selectedElection} - ${voteTypeLabels[this.selectedVoteType] || 'Any'}`
+                name: election?.name || this.selectedElection,
+                label: election?.name || this.selectedElection
             });
             this.selectedElection = "";
-            this.selectedVoteType = "";
             this.updateVoterCount();
         },
 
@@ -541,6 +546,11 @@ function calculator() {
         async updateVoterCount() {
             this.loading = true;
             try {
+                // Build elections list from filters
+                const elections = this.voteHistoryFilters.map(f => f.name);
+                // min_elections: 1 for ANY (OR), count for ALL (AND)
+                const minElections = this.voteLogic === 'all' ? elections.length : (elections.length > 0 ? 1 : 0);
+
                 const resp = await fetch("/api/voter-count", {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
@@ -548,7 +558,8 @@ function calculator() {
                         districts: this.selectedDistricts,
                         parties: this.selectedParties,
                         county: this.selectedCounty,
-                        vote_filters: this.voteHistoryFilters
+                        elections: elections,
+                        min_elections: minElections
                     })
                 });
                 const data = await resp.json();

@@ -255,6 +255,7 @@ def api_voter_count():
     if data.get('county'):
         params['county'] = data['county']
     if data.get('elections'):
+        # Elections are passed as full names
         params['elections'] = ','.join(data['elections'])
     if data.get('min_elections'):
         params['min_elections'] = data['min_elections']
