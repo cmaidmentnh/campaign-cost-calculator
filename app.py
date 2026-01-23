@@ -20,7 +20,8 @@ from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from the same directory as this script
+load_dotenv(Path(__file__).parent / '.env')
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(32))
@@ -236,7 +237,7 @@ def api_elections():
     if result:
         elections = result.get('elections', [])
         # Filter to state-level elections (include both regular and special state elections)
-        state_elections = [e for e in elections if 'STATE' in e.get('type', '').upper()]
+        state_elections = [e for e in elections if 'STATE' in e.get('category', '').upper()]
         return jsonify({'elections': state_elections[:30]})
     return jsonify({'elections': []})
 
