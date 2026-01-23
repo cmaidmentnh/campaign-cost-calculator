@@ -312,7 +312,6 @@ def api_calculate():
         return 0
 
     discount_pct = float(settings.get('discount_percent', 0)) / 100
-    mgmt_fee_pct = 0.15  # 15% management fee for digital ads
 
     # Voter contact tactics (per-unit pricing)
     voter_tactics = {
@@ -321,12 +320,22 @@ def api_calculate():
         'email': {'name': 'Email', 'components': ['append', 'send']},
     }
 
-    # Digital advertising tactics - now impressions-based
-    digital_cpms = {
-        'facebook': {'name': 'Facebook/Meta Ads', 'cpm': 4.00},
-        'ctv': {'name': 'Connected TV (CTV)', 'cpm': 25.00},
-        'display': {'name': 'Display Ads', 'cpm': 3.00},
+    # Digital advertising tactics - read CPMs from database
+    digital_tactics_config = {
+        'facebook': {'name': 'Facebook/Meta Ads'},
+        'ctv': {'name': 'Connected TV (CTV)'},
+        'display': {'name': 'Display Ads'},
     }
+    # Get CPMs and management fees from price_map (falls back to defaults if not in DB)
+    digital_cpms = {}
+    for tactic in digital_tactics_config:
+        cpm_info = price_map.get((tactic, 'cpm'), {'price': 5.00})
+        mgmt_info = price_map.get((tactic, 'management'), {'price': 500.00})
+        digital_cpms[tactic] = {
+            'name': digital_tactics_config[tactic]['name'],
+            'cpm': float(cpm_info['price']),
+            'mgmt_fee': float(mgmt_info['price'])
+        }
 
     breakdown = {}
     grand_total = 0
@@ -385,9 +394,9 @@ def api_calculate():
             continue
 
         cpm = tactic_info['cpm']
+        mgmt_fee = tactic_info['mgmt_fee']  # Flat monthly fee from database
         impressions = matched_voters * impressions_per_voter
         ad_spend = (impressions / 1000) * cpm
-        mgmt_fee = ad_spend * mgmt_fee_pct
         tactic_total = ad_spend + mgmt_fee
 
         breakdown[tactic_key] = {
@@ -400,12 +409,12 @@ def api_calculate():
                 {
                     'name': 'Ad Spend',
                     'cost': ad_spend,
-                    'description': f"{impressions:,} impressions @ ${cpm} CPM"
+                    'description': f"{impressions:,} impressions @ ${cpm:.2f} CPM"
                 },
                 {
                     'name': 'Management Fee',
                     'cost': mgmt_fee,
-                    'description': f"15% of ad spend"
+                    'description': f"Monthly management fee"
                 }
             ],
             'subtotal': tactic_total
