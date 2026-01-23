@@ -256,6 +256,7 @@
 <script>
 function adminPanel() {
     return {
+        csrfToken: '{{ csrf_token() }}',
         prices: {
             {% for tactic, components in prices.items() %}
             '{{ tactic }}': {
@@ -293,7 +294,10 @@ function adminPanel() {
             try {
                 const resp = await fetch('/admin/update-prices', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.csrfToken
+                    },
                     body: JSON.stringify({ prices: priceList })
                 });
                 if (resp.ok) {
@@ -309,7 +313,10 @@ function adminPanel() {
             try {
                 const resp = await fetch('/admin/update-settings', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.csrfToken
+                    },
                     body: JSON.stringify(this.settings)
                 });
                 if (resp.ok) {
@@ -337,7 +344,10 @@ function adminPanel() {
             try {
                 const resp = await fetch('/admin/change-password', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.csrfToken
+                    },
                     body: JSON.stringify({ password: this.newPassword })
                 });
                 const data = await resp.json();

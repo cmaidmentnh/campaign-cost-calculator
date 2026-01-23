@@ -145,8 +145,7 @@ def init_db():
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('company_name', '1772 Strategies')")
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('notes', 'Terms: 50% deposit required to begin. Balance due upon completion.')")
     # Digital ad settings
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('fb_ctr', '0.5')")  # 0.5% click-through rate
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('fb_conversion_rate', '20')")  # 20% conversion rate
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('digital_match_rate', '60')")  # 60% match rate for digital targeting
 
     conn.commit()
     conn.close()
@@ -236,9 +235,9 @@ def api_elections():
     result = call_voter_api('/api/available-elections')
     if result:
         elections = result.get('elections', [])
-        # Filter to state-level elections
-        state_elections = [e for e in elections if e.get('type', '').upper() in ('STATE GENERAL', 'STATE PRIMARY')]
-        return jsonify({'elections': state_elections[:20]})
+        # Filter to state-level elections (include both regular and special state elections)
+        state_elections = [e for e in elections if 'STATE' in e.get('type', '').upper()]
+        return jsonify({'elections': state_elections[:30]})
     return jsonify({'elections': []})
 
 
@@ -269,11 +268,11 @@ def api_voter_count():
 @app.route('/api/calculate', methods=['POST'])
 @csrf.exempt
 def api_calculate():
-    """Calculate costs based on voter count, rounds, and budgets."""
+    """Calculate costs based on voter count, rounds, and digital settings."""
     data = request.json or {}
     voter_count = data.get('voter_count', 0)
     rounds = data.get('rounds', {})
-    budgets = data.get('budgets', {})  # For digital ads
+    digital = data.get('digital', {})  # New impressions-based digital ads
 
     conn = get_db()
     prices = conn.execute('SELECT * FROM prices').fetchall()
@@ -311,8 +310,7 @@ def api_calculate():
         return 0
 
     discount_pct = float(settings.get('discount_percent', 0)) / 100
-    fb_ctr = float(settings.get('fb_ctr', 0.5)) / 100
-    fb_conv_rate = float(settings.get('fb_conversion_rate', 20)) / 100
+    mgmt_fee_pct = 0.15  # 15% management fee for digital ads
 
     # Voter contact tactics (per-unit pricing)
     voter_tactics = {
@@ -321,11 +319,11 @@ def api_calculate():
         'email': {'name': 'Email', 'components': ['append', 'send']},
     }
 
-    # Digital advertising tactics (CPM/budget based)
-    digital_tactics = {
-        'facebook': {'name': 'Facebook/Meta Ads', 'components': ['cpm', 'management']},
-        'ctv': {'name': 'Connected TV (CTV)', 'components': ['cpm', 'management']},
-        'display': {'name': 'Display Ads', 'components': ['cpm', 'management']},
+    # Digital advertising tactics - now impressions-based
+    digital_cpms = {
+        'facebook': {'name': 'Facebook/Meta Ads', 'cpm': 4.00},
+        'ctv': {'name': 'Connected TV (CTV)', 'cpm': 25.00},
+        'display': {'name': 'Display Ads', 'cpm': 3.00},
     }
 
     breakdown = {}
@@ -375,58 +373,42 @@ def api_calculate():
         }
         grand_total += tactic_total
 
-    # Calculate digital advertising tactics (budget-based)
-    for tactic_key, tactic_info in digital_tactics.items():
-        budget = budgets.get(tactic_key, 0)
-        num_months = rounds.get(tactic_key, 0)  # "rounds" = months for digital
-        if budget == 0 and num_months == 0:
+    # Calculate digital advertising tactics (impressions-based)
+    digital_tactics = digital.get('tactics', {})
+    matched_voters = digital.get('matched_voters', 0)
+
+    for tactic_key, tactic_info in digital_cpms.items():
+        impressions_per_voter = digital_tactics.get(tactic_key, 0)
+        if impressions_per_voter == 0:
             continue
 
-        tactic_total = 0
-        components = []
+        cpm = tactic_info['cpm']
+        impressions = matched_voters * impressions_per_voter
+        ad_spend = (impressions / 1000) * cpm
+        mgmt_fee = ad_spend * mgmt_fee_pct
+        tactic_total = ad_spend + mgmt_fee
 
-        for comp in tactic_info['components']:
-            price_info = price_map.get((tactic_key, comp), {'price': 0, 'is_per_round': 1, 'description': '', 'pricing_model': 'per_unit'})
-            model = price_info.get('pricing_model', 'per_unit')
-
-            if model == 'cpm' and budget > 0:
-                cpm = price_info['price']
-                impressions = (budget / cpm) * 1000
-                clicks = impressions * fb_ctr
-                conversions = clicks * fb_conv_rate
-                cost = budget * num_months if num_months > 0 else budget
-
-                components.append({
+        breakdown[tactic_key] = {
+            'name': tactic_info['name'],
+            'impressions_per_voter': impressions_per_voter,
+            'matched_voters': matched_voters,
+            'total_impressions': impressions,
+            'cpm': cpm,
+            'components': [
+                {
                     'name': 'Ad Spend',
-                    'unit_price': cpm,
-                    'cost': cost,
-                    'description': f"${budget:,.0f}/mo x {num_months} months" if num_months > 0 else f"${budget:,.0f} budget",
-                    'impressions': int(impressions * (num_months or 1)),
-                    'clicks': int(clicks * (num_months or 1)),
-                    'conversions': int(conversions * (num_months or 1)),
-                    'cpm': cpm
-                })
-                tactic_total += cost
-
-            elif model == 'flat' and num_months > 0:
-                cost = price_info['price'] * num_months
-                components.append({
-                    'name': comp.replace('_', ' ').title(),
-                    'unit_price': price_info['price'],
-                    'cost': cost,
-                    'description': f"${price_info['price']:,.0f}/mo x {num_months} months"
-                })
-                tactic_total += cost
-
-        if tactic_total > 0:
-            breakdown[tactic_key] = {
-                'name': tactic_info['name'],
-                'rounds': num_months,
-                'budget': budget,
-                'components': components,
-                'subtotal': tactic_total
-            }
-            grand_total += tactic_total
+                    'cost': ad_spend,
+                    'description': f"{impressions:,} impressions @ ${cpm} CPM"
+                },
+                {
+                    'name': 'Management Fee',
+                    'cost': mgmt_fee,
+                    'description': f"15% of ad spend"
+                }
+            ],
+            'subtotal': tactic_total
+        }
+        grand_total += tactic_total
 
     discount_amount = grand_total * discount_pct
     final_total = grand_total - discount_amount
@@ -462,6 +444,30 @@ def api_save_quote():
     conn.close()
 
     return jsonify({'success': True, 'quote_id': quote_id})
+
+
+# ============================================================================
+# MAP ROUTES
+# ============================================================================
+
+@app.route('/map')
+def voter_map():
+    """Voter map page showing geocoded addresses."""
+    return render_template('map.html')
+
+
+@app.route('/api/map-points')
+@csrf.exempt
+def api_map_points():
+    """Get geocoded voter coordinates."""
+    try:
+        headers = {'X-API-Key': VOTER_API_KEY} if VOTER_API_KEY else {}
+        resp = requests.get(f"{VOTER_API}/api/map-points", headers=headers, timeout=60)
+        resp.raise_for_status()
+        return Response(resp.content, mimetype='application/json')
+    except Exception as e:
+        print(f"Map API error: {e}")
+        return jsonify({'error': str(e), 'points': []})
 
 
 # ============================================================================

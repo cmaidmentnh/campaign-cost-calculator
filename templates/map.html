@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Voter Map - NH{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+    #map {
+        height: calc(100vh - 80px);
+        width: 100%;
+        background: #1a1a2e;
+    }
+    .leaflet-container {
+        background: #1a1a2e;
+    }
+    .info-box {
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.1);
+        padding: 12px 16px;
+        border-radius: 8px;
+        color: white;
+        font-size: 14px;
+    }
+    .info-box h4 {
+        margin: 0 0 8px 0;
+        font-weight: 600;
+        color: #60a5fa;
+    }
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(2, 6, 23, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .spinner {
+        width: 48px;
+        height: 48px;
+        border: 3px solid rgba(96, 165, 250, 0.2);
+        border-top-color: #60a5fa;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="min-h-screen bg-dark-950">
+    <!-- Header -->
+    <div class="glass border-b border-white/10">
+        <div class="max-w-full mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/" class="text-dark-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                    </svg>
+                </a>
+                <h1 class="text-xl font-semibold">
+                    <span class="gradient-text">NH Voter Map</span>
+                </h1>
+            </div>
+            <div id="stats" class="text-dark-400 text-sm">
+                Loading...
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div class="relative">
+        <div id="map"></div>
+        <div id="loading" class="loading-overlay">
+            <div class="spinner"></div>
+            <div class="text-white text-lg">Loading voter locations...</div>
+            <div id="load-progress" class="text-dark-400 text-sm"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Initialize map centered on NH
+const map = L.map('map', {
+    preferCanvas: true  // Use canvas for better performance
+}).setView([43.5, -71.5], 8);
+
+// Dark map tiles
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
+}).addTo(map);
+
+// Info control
+const info = L.control({position: 'bottomleft'});
+info.onAdd = function() {
+    const div = L.DomUtil.create('div', 'info-box');
+    div.innerHTML = '<h4>Geocoded Voters</h4><div id="info-content">Hover over points for details</div>';
+    return div;
+};
+info.addTo(map);
+
+// Load and display points
+async function loadPoints() {
+    const loading = document.getElementById('loading');
+    const progress = document.getElementById('load-progress');
+    const stats = document.getElementById('stats');
+
+    try {
+        progress.textContent = 'Fetching data from server...';
+
+        const response = await fetch('/api/map-points');
+        const data = await response.json();
+
+        if (data.error) {
+            progress.textContent = 'Error: ' + data.error;
+            return;
+        }
+
+        const points = data.points || [];
+        progress.textContent = `Rendering ${points.length.toLocaleString()} points...`;
+
+        // Create canvas layer for performance
+        const canvasRenderer = L.canvas({ padding: 0.5 });
+
+        // Add points in batches to avoid UI freeze
+        const batchSize = 5000;
+        let added = 0;
+
+        for (let i = 0; i < points.length; i += batchSize) {
+            const batch = points.slice(i, i + batchSize);
+
+            batch.forEach(p => {
+                L.circleMarker([p[0], p[1]], {
+                    radius: 3,
+                    fillColor: '#3b82f6',
+                    fillOpacity: 0.7,
+                    color: '#60a5fa',
+                    weight: 1,
+                    renderer: canvasRenderer
+                }).addTo(map);
+            });
+
+            added += batch.length;
+            progress.textContent = `Rendered ${added.toLocaleString()} / ${points.length.toLocaleString()} points`;
+
+            // Allow UI to update
+            await new Promise(r => setTimeout(r, 10));
+        }
+
+        // Update stats
+        stats.textContent = `${points.length.toLocaleString()} geocoded voters`;
+
+        // Hide loading overlay
+        loading.style.display = 'none';
+
+    } catch (err) {
+        console.error('Error loading points:', err);
+        progress.textContent = 'Error loading data: ' + err.message;
+    }
+}
+
+// Load points when page is ready
+loadPoints();
+</script>
+{% endblock %}

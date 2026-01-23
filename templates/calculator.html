@@ -37,7 +37,7 @@
         <div class="grid lg:grid-cols-3 gap-8">
             <div class="lg:col-span-2 space-y-6">
                 <!-- Geography -->
-                <div class="glass rounded-2xl p-6 animate-in" style="animation-delay: 0.1s">
+                <div class="glass rounded-2xl p-6 animate-in relative z-30" style="animation-delay: 0.1s">
                     <div class="flex items-center gap-3 mb-5">
                         <div class="w-8 h-8 rounded-lg bg-accent-500/20 flex items-center justify-center"><span class="text-accent-400 font-semibold text-sm">1</span></div>
                         <h2 class="text-lg font-semibold">Select Geography</h2>
@@ -214,10 +214,25 @@
 
                 <!-- Digital Advertising -->
                 <div class="glass rounded-2xl p-6 animate-in" style="animation-delay: 0.3s">
-                    <div class="flex items-center gap-3 mb-6">
-                        <div class="w-8 h-8 rounded-lg bg-accent-500/20 flex items-center justify-center"><span class="text-accent-400 font-semibold text-sm">5</span></div>
-                        <h2 class="text-lg font-semibold">Digital Advertising</h2>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-accent-500/20 flex items-center justify-center"><span class="text-accent-400 font-semibold text-sm">5</span></div>
+                            <h2 class="text-lg font-semibold">Digital Advertising</h2>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs text-dark-500">Match Rate</div>
+                            <div class="text-sm font-medium text-accent-400" x-text="digitalMatchRate + '%'">60%</div>
+                        </div>
                     </div>
+
+                    <!-- Matched Voters Info -->
+                    <div x-show="voterCount > 0" class="mb-6 p-3 rounded-xl bg-accent-500/10 border border-accent-500/20">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-dark-300">Matched for digital targeting:</span>
+                            <span class="font-semibold text-accent-400" x-text="matchedVoters.toLocaleString() + ' voters'"></span>
+                        </div>
+                    </div>
+
                     <div class="space-y-6">
                         <!-- Facebook/Meta -->
                         <div class="p-4 rounded-xl bg-white/5 border border-white/10">
@@ -227,26 +242,36 @@
                                         <svg class="w-5 h-5 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
                                         Facebook / Meta Ads
                                     </h3>
-                                    <p class="text-sm text-dark-400 mt-1">$4.00 CPM • Geo-targeted to your universe</p>
+                                    <p class="text-sm text-dark-400 mt-1">$4.00 CPM</p>
                                 </div>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" x-model="digitalEnabled.facebook" @change="calculate()" class="rounded">
+                                    <span class="text-sm text-dark-400">Enable</span>
+                                </label>
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs text-dark-400 mb-1">Monthly Budget</label>
-                                    <div class="relative">
-                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500">$</span>
-                                        <input type="number" x-model.number="budgets.facebook" @input="calculate()" min="0" step="100" placeholder="0" class="w-full pl-7 rounded-lg px-3 py-2 text-sm">
+                            <div x-show="digitalEnabled.facebook" x-collapse>
+                                <div class="mb-4">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-sm text-dark-300">Impressions per voter</label>
+                                        <span class="text-sm font-medium text-white" x-text="impressionsPerVoter.facebook + 'x'"></span>
+                                    </div>
+                                    <input type="range" x-model.number="impressionsPerVoter.facebook" @input="calculate()" min="1" max="30" class="w-full">
+                                    <div class="flex justify-between text-xs text-dark-500 mt-1"><span>1x</span><span>15x</span><span>30x</span></div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-3 p-3 rounded-lg bg-dark-800/50">
+                                    <div class="text-center">
+                                        <div class="text-lg font-semibold text-white" x-text="getDigitalImpressions('facebook').toLocaleString()"></div>
+                                        <div class="text-xs text-dark-500">Impressions</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-lg font-semibold text-white" x-text="'$' + getDigitalCost('facebook', 4).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})"></div>
+                                        <div class="text-xs text-dark-500">Ad Spend</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-lg font-semibold text-white" x-text="'$' + (getDigitalCost('facebook', 4) * 0.15).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})"></div>
+                                        <div class="text-xs text-dark-500">Mgmt Fee</div>
                                     </div>
                                 </div>
-                                <div>
-                                    <label class="block text-xs text-dark-400 mb-1">Months</label>
-                                    <input type="number" x-model.number="rounds.facebook" @input="calculate()" min="0" max="12" class="w-full rounded-lg px-3 py-2 text-sm">
-                                </div>
-                            </div>
-                            <div x-show="budgets.facebook > 0" class="mt-3 pt-3 border-t border-white/10 grid grid-cols-3 gap-2 text-center">
-                                <div><div class="text-lg font-semibold text-white" x-text="Math.round((budgets.facebook / 4) * 1000 * (rounds.facebook || 1)).toLocaleString()"></div><div class="text-xs text-dark-500">Impressions</div></div>
-                                <div><div class="text-lg font-semibold text-white" x-text="Math.round((budgets.facebook / 4) * 1000 * 0.005 * (rounds.facebook || 1)).toLocaleString()"></div><div class="text-xs text-dark-500">Clicks</div></div>
-                                <div><div class="text-lg font-semibold text-white" x-text="Math.round((budgets.facebook / 4) * 1000 * 0.005 * 0.2 * (rounds.facebook || 1)).toLocaleString()"></div><div class="text-xs text-dark-500">Conversions</div></div>
                             </div>
                         </div>
 
@@ -258,25 +283,36 @@
                                         <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                                         Connected TV (CTV)
                                     </h3>
-                                    <p class="text-sm text-dark-400 mt-1">$25.00 CPM • Streaming TV ads</p>
+                                    <p class="text-sm text-dark-400 mt-1">$25.00 CPM</p>
                                 </div>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" x-model="digitalEnabled.ctv" @change="calculate()" class="rounded">
+                                    <span class="text-sm text-dark-400">Enable</span>
+                                </label>
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs text-dark-400 mb-1">Monthly Budget</label>
-                                    <div class="relative">
-                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500">$</span>
-                                        <input type="number" x-model.number="budgets.ctv" @input="calculate()" min="0" step="100" placeholder="0" class="w-full pl-7 rounded-lg px-3 py-2 text-sm">
+                            <div x-show="digitalEnabled.ctv" x-collapse>
+                                <div class="mb-4">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-sm text-dark-300">Impressions per voter</label>
+                                        <span class="text-sm font-medium text-white" x-text="impressionsPerVoter.ctv + 'x'"></span>
+                                    </div>
+                                    <input type="range" x-model.number="impressionsPerVoter.ctv" @input="calculate()" min="1" max="30" class="w-full">
+                                    <div class="flex justify-between text-xs text-dark-500 mt-1"><span>1x</span><span>15x</span><span>30x</span></div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-3 p-3 rounded-lg bg-dark-800/50">
+                                    <div class="text-center">
+                                        <div class="text-lg font-semibold text-white" x-text="getDigitalImpressions('ctv').toLocaleString()"></div>
+                                        <div class="text-xs text-dark-500">Impressions</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-lg font-semibold text-white" x-text="'$' + getDigitalCost('ctv', 25).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})"></div>
+                                        <div class="text-xs text-dark-500">Ad Spend</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-lg font-semibold text-white" x-text="'$' + (getDigitalCost('ctv', 25) * 0.15).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})"></div>
+                                        <div class="text-xs text-dark-500">Mgmt Fee</div>
                                     </div>
                                 </div>
-                                <div>
-                                    <label class="block text-xs text-dark-400 mb-1">Months</label>
-                                    <input type="number" x-model.number="rounds.ctv" @input="calculate()" min="0" max="12" class="w-full rounded-lg px-3 py-2 text-sm">
-                                </div>
-                            </div>
-                            <div x-show="budgets.ctv > 0" class="mt-3 pt-3 border-t border-white/10 text-center">
-                                <div class="text-lg font-semibold text-white" x-text="Math.round((budgets.ctv / 25) * 1000 * (rounds.ctv || 1)).toLocaleString()"></div>
-                                <div class="text-xs text-dark-500">Estimated Impressions</div>
                             </div>
                         </div>
 
@@ -288,25 +324,36 @@
                                         <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                         Display Ads
                                     </h3>
-                                    <p class="text-sm text-dark-400 mt-1">$3.00 CPM • Banner ads across websites</p>
+                                    <p class="text-sm text-dark-400 mt-1">$3.00 CPM</p>
                                 </div>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" x-model="digitalEnabled.display" @change="calculate()" class="rounded">
+                                    <span class="text-sm text-dark-400">Enable</span>
+                                </label>
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs text-dark-400 mb-1">Monthly Budget</label>
-                                    <div class="relative">
-                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500">$</span>
-                                        <input type="number" x-model.number="budgets.display" @input="calculate()" min="0" step="100" placeholder="0" class="w-full pl-7 rounded-lg px-3 py-2 text-sm">
+                            <div x-show="digitalEnabled.display" x-collapse>
+                                <div class="mb-4">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-sm text-dark-300">Impressions per voter</label>
+                                        <span class="text-sm font-medium text-white" x-text="impressionsPerVoter.display + 'x'"></span>
+                                    </div>
+                                    <input type="range" x-model.number="impressionsPerVoter.display" @input="calculate()" min="1" max="30" class="w-full">
+                                    <div class="flex justify-between text-xs text-dark-500 mt-1"><span>1x</span><span>15x</span><span>30x</span></div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-3 p-3 rounded-lg bg-dark-800/50">
+                                    <div class="text-center">
+                                        <div class="text-lg font-semibold text-white" x-text="getDigitalImpressions('display').toLocaleString()"></div>
+                                        <div class="text-xs text-dark-500">Impressions</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-lg font-semibold text-white" x-text="'$' + getDigitalCost('display', 3).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})"></div>
+                                        <div class="text-xs text-dark-500">Ad Spend</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-lg font-semibold text-white" x-text="'$' + (getDigitalCost('display', 3) * 0.15).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})"></div>
+                                        <div class="text-xs text-dark-500">Mgmt Fee</div>
                                     </div>
                                 </div>
-                                <div>
-                                    <label class="block text-xs text-dark-400 mb-1">Months</label>
-                                    <input type="number" x-model.number="rounds.display" @input="calculate()" min="0" max="12" class="w-full rounded-lg px-3 py-2 text-sm">
-                                </div>
-                            </div>
-                            <div x-show="budgets.display > 0" class="mt-3 pt-3 border-t border-white/10 text-center">
-                                <div class="text-lg font-semibold text-white" x-text="Math.round((budgets.display / 3) * 1000 * (rounds.display || 1)).toLocaleString()"></div>
-                                <div class="text-xs text-dark-500">Estimated Impressions</div>
                             </div>
                         </div>
                     </div>
@@ -384,9 +431,13 @@ function calculator() {
         selectedElection: "",
         selectedVoteType: "",
         voteHistoryFilters: [],
-        rounds: { direct_mail: 0, sms: 0, email: 0, facebook: 0, ctv: 0, display: 0 },
-        budgets: { facebook: 0, ctv: 0, display: 0 },
+        rounds: { direct_mail: 0, sms: 0, email: 0 },
         clientName: "",
+
+        // Digital advertising
+        digitalMatchRate: {{ settings.digital_match_rate|default(60) }},
+        digitalEnabled: { facebook: false, ctv: false, display: false },
+        impressionsPerVoter: { facebook: 10, ctv: 10, display: 10 },
 
         // Results
         loading: false,
@@ -403,6 +454,23 @@ function calculator() {
             if (!this.districtSearch) return this.houseDistricts.slice(0, 20);
             const search = this.districtSearch.toLowerCase();
             return this.houseDistricts.filter(d => d.name.toLowerCase().includes(search)).slice(0, 20);
+        },
+
+        // Computed: matched voters for digital targeting
+        get matchedVoters() {
+            return Math.round(this.voterCount * (this.digitalMatchRate / 100));
+        },
+
+        // Get impressions for a digital tactic
+        getDigitalImpressions(tactic) {
+            if (!this.digitalEnabled[tactic]) return 0;
+            return this.matchedVoters * this.impressionsPerVoter[tactic];
+        },
+
+        // Get cost for a digital tactic (ad spend only, not including mgmt fee)
+        getDigitalCost(tactic, cpm) {
+            const impressions = this.getDigitalImpressions(tactic);
+            return (impressions / 1000) * cpm;
         },
 
         toggleDistrict(name) {
@@ -495,8 +563,8 @@ function calculator() {
 
         async calculate() {
             // Allow calculation even with 0 voters (for digital-only campaigns)
-            const hasDigitalBudget = this.budgets.facebook > 0 || this.budgets.ctv > 0 || this.budgets.display > 0;
-            if (this.voterCount === 0 && !hasDigitalBudget) {
+            const hasDigital = this.digitalEnabled.facebook || this.digitalEnabled.ctv || this.digitalEnabled.display;
+            if (this.voterCount === 0 && !hasDigital) {
                 this.costBreakdown = {};
                 this.subtotal = this.discountAmount = this.grandTotal = 0;
                 return;
@@ -508,7 +576,15 @@ function calculator() {
                     body: JSON.stringify({
                         voter_count: this.voterCount,
                         rounds: this.rounds,
-                        budgets: this.budgets
+                        digital: {
+                            match_rate: this.digitalMatchRate,
+                            matched_voters: this.matchedVoters,
+                            tactics: {
+                                facebook: this.digitalEnabled.facebook ? this.impressionsPerVoter.facebook : 0,
+                                ctv: this.digitalEnabled.ctv ? this.impressionsPerVoter.ctv : 0,
+                                display: this.digitalEnabled.display ? this.impressionsPerVoter.display : 0
+                            }
+                        }
                     })
                 });
                 const data = await resp.json();
