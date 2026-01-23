@@ -507,6 +507,7 @@ def admin():
     prices = conn.execute('SELECT * FROM prices ORDER BY tactic, component').fetchall()
     settings = {row['key']: row['value'] for row in conn.execute('SELECT * FROM settings').fetchall()}
     quotes = conn.execute('SELECT * FROM quotes ORDER BY created_at DESC LIMIT 50').fetchall()
+    volume_tiers = conn.execute('SELECT * FROM volume_tiers ORDER BY tactic, min_qty').fetchall()
     conn.close()
 
     # Group prices by tactic
@@ -516,8 +517,16 @@ def admin():
             grouped[p['tactic']] = []
         grouped[p['tactic']].append(dict(p))
 
+    # Group volume tiers by tactic
+    tiers_grouped = {}
+    for t in volume_tiers:
+        if t['tactic'] not in tiers_grouped:
+            tiers_grouped[t['tactic']] = []
+        tiers_grouped[t['tactic']].append(dict(t))
+
     return render_template('admin.html',
                           prices=grouped,
+                          volume_tiers=tiers_grouped,
                           settings=settings,
                           quotes=quotes)
 
@@ -550,6 +559,26 @@ def update_settings():
     for key, value in data.items():
         conn.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
                      (key, str(value)))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'success': True})
+
+
+@app.route('/admin/update-volume-tiers', methods=['POST'])
+@login_required
+def update_volume_tiers():
+    """Update volume discount tiers."""
+    data = request.json or {}
+
+    conn = get_db()
+    # Clear existing tiers and insert new ones
+    for tactic, tiers in data.items():
+        conn.execute('DELETE FROM volume_tiers WHERE tactic = ?', (tactic,))
+        for tier in tiers:
+            conn.execute('''INSERT INTO volume_tiers (tactic, min_qty, max_qty, discount_percent)
+                           VALUES (?, ?, ?, ?)''',
+                        (tactic, tier['min'], tier.get('max'), tier['discount']))
     conn.commit()
     conn.close()
 
