@@ -36,9 +36,27 @@ app.config['WTF_CSRF_TIME_LIMIT'] = 3600
 csrf = CSRFProtect(app)
 
 # Rate limiting
+def real_client_ip():
+    """The visitor's address, not the proxy's.
+
+    flask-limiter's get_remote_address returns request.remote_addr, which behind
+    nginx is always 127.0.0.1. Every per-IP limit then shares one counter, so a
+    single client can exhaust the login limit for everyone. nginx sets X-Real-IP
+    from the connection it actually sees, so it cannot be forged; the left-most
+    X-Forwarded-For entry can be, and is deliberately not used.
+    """
+    from flask import request as _rq
+    try:
+        return (_rq.headers.get('CF-Connecting-IP')
+                or _rq.headers.get('X-Real-IP')
+                or get_remote_address())
+    except Exception:
+        return get_remote_address()
+
+
 limiter = Limiter(
     app=app,
-    key_func=get_remote_address,
+    key_func=real_client_ip,
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://",
 )
