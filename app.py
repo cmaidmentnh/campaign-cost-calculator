@@ -24,6 +24,19 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / '.env')
 
 app = Flask(__name__)
+
+# Session cookie hardening.
+#   SECURE   - never send the session cookie over an unencrypted connection.
+#              Flask's default is False, which means one plain http:// request,
+#              made before the redirect to https, leaks the cookie to anyone on
+#              the network path. Whoever copies it is logged in as that user.
+#   HTTPONLY - JavaScript cannot read it, so injected script cannot steal it.
+#   SAMESITE - not sent when another site triggers a request here, which stops a
+#              malicious page acting as a logged-in user.
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(32))
 
 # Session security
